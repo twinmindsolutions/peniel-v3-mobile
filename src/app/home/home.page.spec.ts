@@ -22,4 +22,8 @@ describe('HomePage', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('does not display obsolete authentication or workspace setup messaging', () => {
+    expect(fixture.nativeElement.textContent).not.toContain('Sign-in and organization selection will be connected');
+  });
 });
