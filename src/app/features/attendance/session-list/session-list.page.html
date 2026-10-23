@@ -1,0 +1,29 @@
+<ion-header><ion-toolbar><ion-title>Attendance</ion-title></ion-toolbar></ion-header>
+<ion-content>
+  <app-page-shell eyebrow="Attendance" title="Sessions" description="View attendance sessions available in your current workspace.">
+    @if (!attendance.resolved()) {
+      <app-feedback-state kind="loading" title="Verifying access" message="Checking your attendance permissions." />
+    } @else if (!attendance.canViewAttendance()) {
+      <app-feedback-state title="Attendance is unavailable" message="Your current workspace does not include attendance viewing access." />
+    } @else if (loading()) {
+      <app-feedback-state kind="loading" title="Loading sessions" message="Retrieving authorized attendance sessions." />
+    } @else if (error()) {
+      <app-feedback-state title="Sessions unavailable" message="We could not load attendance sessions. Please try again." (retry)="load()" />
+    } @else if (!sessions().length) {
+      <app-empty-state title="No attendance sessions" message="There are no authorized sessions in this workspace." />
+    } @else {
+      <ion-list class="session-list">
+        @for (session of sessions(); track session.id) {
+          <ion-item [routerLink]="['/app/attendance/sessions', session.id]" detail="true" lines="none">
+            <ion-label>
+              <p class="session-date">{{ formatDate(session.local_occurrence_date) }} · {{ formatTime(session.scheduled_start) }}</p>
+              <h2>{{ sessionTitle(session) }}</h2>
+              <p>{{ session.branch.name }}<span class="separator"> · </span>{{ session.group?.name || 'All members' }}</p>
+            </ion-label>
+            <span class="status" [class]="'status status--' + session.status">{{ session.status }}</span>
+          </ion-item>
+        }
+      </ion-list>
+    }
+  </app-page-shell>
+</ion-content>

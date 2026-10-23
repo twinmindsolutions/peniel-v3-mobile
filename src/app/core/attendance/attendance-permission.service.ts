@@ -40,6 +40,10 @@ export class AttendancePermissionService {
   });
 
   readonly canViewAttendance = computed(() => this.hasBranchCapability('can_view_attendance', 'view_branch_ids'));
+  /** Mirrors the current backend recording actors without inventing a role-based permission. */
+  readonly canRecordAttendance = computed(() => this.isReady() && (
+    this.canManageAttendanceSessions() || this.currentAdHocScope() !== null
+  ));
   readonly canCreateAdHocSession = computed(() => this.hasAdHocScopeForBranch());
   readonly canManageAttendanceSessions = computed(() => this.hasBranchCapability(
     'can_manage_attendance_sessions',

@@ -1,0 +1,62 @@
+<ion-header><ion-toolbar><ion-title>Session details</ion-title></ion-toolbar></ion-header>
+<ion-content>
+  <app-page-shell eyebrow="Attendance" title="Session details" description="Registered-member attendance for this authorized session.">
+    @if (!attendance.resolved()) {
+      <app-feedback-state kind="loading" title="Verifying access" message="Checking your attendance permissions." />
+    } @else if (!attendance.canViewAttendance()) {
+      <app-feedback-state title="Attendance is unavailable" message="Your current workspace does not include attendance viewing access." />
+    } @else if (loading()) {
+      <app-feedback-state kind="loading" title="Loading session" message="Retrieving session details." />
+    } @else if (error() || !session()) {
+      <app-feedback-state title="Session unavailable" message="This session is unavailable in your current workspace." (retry)="load()" />
+    } @else {
+      <section class="session-card" aria-labelledby="session-title">
+        <div class="session-heading"><div><p class="eyebrow">{{ session()!.status }}</p><h2 id="session-title">{{ session()!.service_type_name_snapshot || session()!.service_type.name }}</h2></div><span class="status">{{ session()!.status }}</span></div>
+        <dl><div><dt>Date</dt><dd>{{ formatDate(session()!.local_occurrence_date) }}</dd></div><div><dt>Time</dt><dd>{{ formatTime(session()!.scheduled_start) }} – {{ formatTime(session()!.scheduled_end) }}</dd></div><div><dt>Branch</dt><dd>{{ session()!.branch.name }}</dd></div><div><dt>Group</dt><dd>{{ session()!.group?.name || 'All members' }}</dd></div></dl>
+      </section>
+      @if (attendance.canRecordAttendance() && session()!.status === 'scheduled') {
+        <section class="check-in-card" aria-labelledby="check-in-title">
+          <p class="eyebrow">Manual check-in</p>
+          <h2 id="check-in-title">Check in a member</h2>
+          <p class="muted">Search by name or membership number. Selecting a member opens a confirmation before recording.</p>
+          <ion-searchbar
+            [value]="searchTerm()"
+            placeholder="Search members"
+            aria-label="Search eligible members"
+            [debounce]="0"
+            (ionInput)="onSearch($event)"
+          />
+          @if (memberLoading()) {
+            <app-feedback-state kind="loading" title="Searching members" message="Checking eligible members for this session." />
+          } @else if (memberError()) {
+            <app-feedback-state title="Member search unavailable" message="We could not load eligible members. Please try again." (retry)="searchMembers()" />
+          } @else if (!members().length) {
+            <p class="muted search-empty">No eligible members found.</p>
+          } @else {
+            <ion-list class="member-list" lines="none">
+              @for (member of members(); track member.id) {
+                <ion-item button detail="true" [disabled]="checkInInFlight()" (click)="selectMember(member)">
+                  <ion-label><h3>{{ member.first_name }} {{ member.last_name }}</h3><p>{{ member.membership_number }}</p></ion-label>
+                </ion-item>
+              }
+            </ion-list>
+          }
+          @if (selectedMember(); as member) {
+            <div class="confirmation-panel" role="dialog" aria-labelledby="selected-member-title">
+              <div><p class="eyebrow">Ready to confirm</p><h3 id="selected-member-title">{{ member.first_name }} {{ member.last_name }}</h3><p class="muted">{{ member.membership_number }}</p></div>
+              <app-button variant="navy" expand="block" [loading]="checkInInFlight()" [disabled]="checkInInFlight()" (click)="confirmSelectedMember()">Confirm check-in</app-button>
+              <app-button variant="ghost" [disabled]="checkInInFlight()" (click)="selectedMember.set(null)">Cancel</app-button>
+            </div>
+          }
+        </section>
+      }
+      @if (summary()) {
+        <section class="summary-card" aria-labelledby="summary-title">
+          <p class="eyebrow">Registered members only</p><h2 id="summary-title">Attendance summary</h2>
+          <div class="metrics"><div><strong>{{ summary()!.registered_member_check_in_count }}</strong><span>Check-ins</span></div><div><strong>{{ summary()!.recording_staff_count }}</strong><span>Recording staff</span></div></div>
+          @if (summary()!.recording_staff.length) { <ion-list lines="none"> @for (staff of summary()!.recording_staff; track staff.user_id) { <ion-item><ion-label><h3>{{ staff.display_name }}</h3><p>{{ staff.check_in_count }} member check-in{{ staff.check_in_count === 1 ? '' : 's' }}</p></ion-label></ion-item> } </ion-list> } @else { <p class="muted">No registered-member check-ins have been recorded.</p> }
+        </section>
+      }
+    }
+  </app-page-shell>
+</ion-content>

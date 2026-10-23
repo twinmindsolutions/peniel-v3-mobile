@@ -38,9 +38,12 @@ describe('workspaceContextInterceptor', () => {
   });
 
   it('excludes authentication and workspace discovery requests', () => {
+    selectedOrganizationId.set('org-1');
+    selectedBranch.set({ id: 'branch-1', organization: 'org-1' });
     for (const url of [
       'https://api.test/api/v1/auth/mobile/refresh/',
       'https://api.test/api/v1/organizations/',
+      'https://api.test/api/v1/organizations',
       'https://api.test/api/v1/organizations/org-1/branches/',
       'https://api.test/api/v1/organizations/org-1/attendance/capabilities/',
     ]) {
@@ -50,6 +53,32 @@ describe('workspaceContextInterceptor', () => {
       expect(request.request.headers.has('X-Branch-ID')).toBe(false);
       request.flush({});
     }
+  });
+
+  it('keeps discovery behavior unchanged before and after workspace selection', () => {
+    selectedOrganizationId.set(null);
+    selectedBranch.set(null);
+    http.get('https://api.test/api/v1/organizations/').subscribe();
+    const beforeSelection = controller.expectOne('https://api.test/api/v1/organizations/');
+    expect(beforeSelection.request.headers.has('X-Organization-ID')).toBe(false);
+    expect(beforeSelection.request.headers.has('X-Branch-ID')).toBe(false);
+    beforeSelection.flush({});
+
+    selectedOrganizationId.set('org-1');
+    selectedBranch.set({ id: 'branch-1', organization: 'org-1' });
+    http.get('https://api.test/api/v1/organizations/').subscribe();
+    const afterSelection = controller.expectOne('https://api.test/api/v1/organizations/');
+    expect(afterSelection.request.headers.has('X-Organization-ID')).toBe(false);
+    expect(afterSelection.request.headers.has('X-Branch-ID')).toBe(false);
+    afterSelection.flush({});
+  });
+
+  it('only treats GET discovery-shaped requests as discovery exclusions', () => {
+    http.post('https://api.test/api/v1/organizations/', {}).subscribe();
+    const request = controller.expectOne('https://api.test/api/v1/organizations/');
+    expect(request.request.headers.has('X-Organization-ID')).toBe(true);
+    expect(request.request.headers.has('X-Branch-ID')).toBe(true);
+    request.flush({});
   });
 
   it('does not attach headers to another origin or organization', () => {

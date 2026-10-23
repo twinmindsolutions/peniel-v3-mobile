@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard, workspaceGuard } from './core/auth/auth.guard';
 import { authEntryGuard, launchGuard, welcomeGuard } from './core/launch/launch.guards';
+import { attendanceGuard } from './core/attendance/attendance.guard';
 
 export const routes: Routes = [
   {
@@ -33,6 +34,16 @@ export const routes: Routes = [
         path: 'home',
         canActivate: [workspaceGuard],
         loadComponent: () => import('./home/home.page').then((m) => m.HomePage),
+      },
+      {
+        path: 'attendance',
+        canActivate: [attendanceGuard],
+        loadComponent: () => import('./features/attendance/session-list/session-list.page').then((m) => m.SessionListPage),
+      },
+      {
+        path: 'attendance/sessions/:sessionId',
+        canActivate: [attendanceGuard],
+        loadComponent: () => import('./features/attendance/session-detail/session-detail.page').then((m) => m.SessionDetailPage),
       },
       { path: '', redirectTo: 'workspace', pathMatch: 'full' },
     ],

@@ -20,7 +20,7 @@ export const workspaceContextInterceptor: HttpInterceptorFn = (request, next) =>
   if (!requestUrl || requestUrl.origin !== apiUrl.origin || !isUnderBasePath(requestUrl.pathname, apiUrl.pathname)) return next(request);
 
   const relativePath = requestUrl.pathname.slice(apiUrl.pathname.length).replace(/^\/+/, '');
-  if (isExcludedPath(relativePath)) return next(request);
+  if (isExcludedPath(relativePath, request.method)) return next(request);
 
   const organizationId = workspace.selectedOrganizationId();
   const branch = workspace.selectedBranch();
@@ -39,7 +39,7 @@ export const workspaceContextInterceptor: HttpInterceptorFn = (request, next) =>
   if (branch && !requestBranchId) headers[BRANCH_HEADER] = branch.id;
   const scopedRequest = Object.keys(headers).length ? request.clone({ setHeaders: headers }) : request;
   const response = next(scopedRequest);
-  if (!isRefreshableScopePath(relativePath)) return response;
+  if (!isRefreshableScopePath(relativePath, request.method)) return response;
   return response.pipe(
     catchError((error: unknown) => {
       if (!(error instanceof HttpErrorResponse) || ![403, 404].includes(error.status)) {
@@ -75,14 +75,17 @@ function isUnderBasePath(pathname: string, basePath: string): boolean {
   return pathname === basePath || pathname.startsWith(`${basePath}/`);
 }
 
-function isExcludedPath(relativePath: string): boolean {
-  if (/^auth\//.test(relativePath) || relativePath === 'organizations') return true;
-  return /^organizations\/[^/]+\/branches\/?$/.test(relativePath)
-    || /^organizations\/[^/]+\/attendance\/capabilities\/?$/.test(relativePath);
+function isExcludedPath(relativePath: string, method: string): boolean {
+  const normalizedPath = relativePath.replace(/\/+$/, '');
+  if (/^auth\//.test(normalizedPath)) return true;
+  if (method.toUpperCase() !== 'GET') return false;
+  return normalizedPath === 'organizations'
+    || /^organizations\/[^/]+\/branches$/.test(normalizedPath)
+    || /^organizations\/[^/]+\/attendance\/capabilities$/.test(normalizedPath);
 }
 
-function isRefreshableScopePath(relativePath: string): boolean {
-  return /^organizations\/[^/]+(?:\/|$)/.test(relativePath) && !isExcludedPath(relativePath);
+function isRefreshableScopePath(relativePath: string, method: string): boolean {
+  return /^organizations\/[^/]+(?:\/|$)/.test(relativePath) && !isExcludedPath(relativePath, method);
 }
 
 function organizationIdFromPath(relativePath: string): string | null {

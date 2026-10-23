@@ -1,0 +1,11 @@
+.session-list { background: transparent; }
+.session-list ion-item { --background: var(--peniel-surface); --border-radius: var(--peniel-radius-lg); --padding-start: var(--peniel-space-4); --padding-end: var(--peniel-space-3); margin: 0 0 var(--peniel-space-3); box-shadow: var(--peniel-shadow-sm); }
+.session-list ion-label { margin: var(--peniel-space-3) 0; }
+.session-date { color: var(--peniel-primary); font-size: var(--peniel-type-caption); font-weight: 700; margin: 0 0 var(--peniel-space-1); }
+h2 { color: var(--peniel-ink); font-size: var(--peniel-type-body); font-weight: 800; margin: 0 0 var(--peniel-space-1); }
+ion-label p:last-child { color: var(--peniel-muted); margin: 0; }
+.separator { color: var(--peniel-border); }
+.status { align-self: flex-start; border-radius: 999px; color: var(--peniel-ink); font-size: var(--peniel-type-caption); font-weight: 700; padding: 5px 9px; text-transform: capitalize; }
+.status--open { background: color-mix(in srgb, var(--peniel-success) 16%, white); color: var(--peniel-success); }
+.status--scheduled { background: color-mix(in srgb, var(--peniel-primary) 12%, white); color: var(--peniel-primary); }
+.status--closed, .status--cancelled { background: var(--peniel-surface-muted); color: var(--peniel-muted); }

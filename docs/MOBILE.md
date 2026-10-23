@@ -156,3 +156,39 @@ exists. Network/server failures remain retryable errors and do not silently gran
 
 The home page currently exposes only a safe attendance-access status. No attendance recording,
 session, or offline synchronization screens are linked until those features are implemented.
+
+## Attendance sessions (M2.2)
+
+The protected `/app/attendance` route lists the authorized sessions returned by
+`GET /api/v1/organizations/{organization_id}/attendance/sessions/`. The response is the backend's
+`{count, results}` shape and is not treated as paginated by the mobile client. Session details are
+available at `/app/attendance/sessions/{session_id}` through the existing detail endpoint, with
+registered-member-only metrics from the attendance-summary endpoint. No visitor, child, or total-
+attendance metrics are invented by the client.
+
+The mobile `AttendanceSessionApiService` is read-only and relies on the existing Bearer and
+workspace-context interceptors. Attendance pages require an authenticated, resolved workspace and
+use `AttendancePermissionService.canViewAttendance`; the page shows a safe no-access state without
+calling protected session APIs when capability access is absent. Organization/branch changes clear
+the rendered session data and late responses are ignored. The session list currently has no client
+pagination because the backend collection is not server-paginated. Check-in, QR scanning, visitor/
+child attendance, corrections, and offline synchronization remain future phases.
+
+## Manual member check-in (M2.3)
+
+Session details provide debounced, server-backed member search through
+`GET /api/v1/organizations/{organization_id}/attendance/sessions/{session_id}/members/?search=...`.
+The backend returns at most 25 eligible active members with `id`, `membership_number`,
+`first_name`, and `last_name`. Selecting a result opens an explicit confirmation before the mobile
+client calls `POST .../check-in/manual/` with `{ "member_id": "..." }`.
+
+The response is the backend's exact `checked_in` or `already_checked_in` outcome and includes the
+original record ID, server timestamp, method, and recording actor. Duplicate responses are shown as
+already recorded and never reported as a new check-in. Successful or duplicate responses refresh the
+read-only session summary. Failed writes are never retried automatically; an uncertain network
+result tells the operator to refresh the session before trying again.
+
+The backend currently has no separate recording capability flag. The UI derives a conservative
+recording affordance from the existing effective session-management branch IDs or current ad-hoc
+scope; the manual endpoint and SECURITY DEFINER function remain authoritative for Organization
+Admins, Branch Admins, and scoped Attendance Officers. View-only users do not receive the action.

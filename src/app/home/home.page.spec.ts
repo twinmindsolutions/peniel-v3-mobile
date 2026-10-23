@@ -25,5 +25,14 @@ describe('HomePage', () => {
 
   it('does not display obsolete authentication or workspace setup messaging', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Sign-in and organization selection will be connected');
+    expect(fixture.nativeElement.textContent).not.toContain('Your workspace is coming soon');
+  });
+
+  it('shows attendance navigation only when viewing attendance is allowed', () => {
+    const attendance = TestBed.inject(AttendancePermissionService) as unknown as { resolved: () => boolean; canViewAttendance: () => boolean };
+    vi.spyOn(attendance, 'resolved').mockReturnValue(true);
+    vi.spyOn(attendance, 'canViewAttendance').mockReturnValue(true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('View attendance sessions');
   });
 });
