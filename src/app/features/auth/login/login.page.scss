@@ -1,6 +1,9 @@
-app-card.login-card {
-  display: block;
-  margin-block: clamp(24px, 8vh, 64px) auto;
+.login-layout {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  padding-block: clamp(12px, 5vh, 48px);
   width: 100%;
 }
 
@@ -8,26 +11,26 @@ app-card.login-card {
   align-items: center;
   color: var(--peniel-navy);
   display: flex;
-  font-size: 1.2rem;
   font-weight: 800;
   gap: var(--peniel-space-2);
-  margin-bottom: var(--peniel-space-6);
+  margin-bottom: clamp(28px, 6vh, 48px);
 }
 
 .login-brand img { height: 42px; width: 42px; }
+.brand-name { display: block; font-size: 1.35rem; letter-spacing: -0.02em; }
+.brand-subtitle { color: var(--peniel-muted); display: block; font-size: 0.75rem; font-weight: 600; margin-top: 2px; }
+.login-eyebrow { color: var(--peniel-primary); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; margin: 0 0 var(--peniel-space-2); }
+h1 { color: var(--peniel-navy); font-size: clamp(2rem, 9vw, 2.65rem); line-height: 1.08; margin: 0 0 var(--peniel-space-3); }
+.login-description { color: var(--peniel-muted); line-height: 1.5; margin: 0 0 clamp(28px, 6vh, 44px); max-width: 360px; }
 .login-form { display: grid; gap: var(--peniel-space-4); }
 
 ion-input {
   --background: var(--peniel-surface);
   --border-color: var(--peniel-border);
   --border-radius: var(--peniel-radius-sm);
-  --border-width: 1px;
   --color: var(--peniel-ink);
+  --placeholder-color: var(--peniel-muted);
   --highlight-color-focused: var(--peniel-primary);
-  --padding-bottom: 13px;
-  --padding-end: 13px;
-  --padding-start: 13px;
-  --padding-top: 13px;
   color: var(--peniel-ink);
   min-height: 48px;
 }
@@ -58,6 +61,22 @@ ion-input {
   outline-offset: 2px;
 }
 
+.login-footer {
+  align-items: center;
+  color: var(--peniel-muted);
+  display: flex;
+  font-size: 0.76rem;
+  gap: var(--peniel-space-2);
+  justify-content: center;
+  margin-top: clamp(28px, 6vh, 48px);
+  text-align: center;
+}
+
+.login-footer ion-icon { color: var(--peniel-success); font-size: 1rem; }
+
 @media (max-height: 640px) {
-  app-card.login-card { margin-block: var(--peniel-space-4) auto; }
+  .login-layout { justify-content: flex-start; padding-block: 8px 24px; }
+  .login-brand { margin-bottom: 24px; }
+  .login-description { margin-bottom: 24px; }
+  .login-footer { margin-top: 28px; }
 }

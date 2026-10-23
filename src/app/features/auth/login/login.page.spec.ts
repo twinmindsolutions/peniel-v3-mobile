@@ -16,8 +16,10 @@ describe('LoginPage', () => {
 
   it('renders the reactive sign-in form', () => {
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Welcome back');
+    expect(fixture.nativeElement.textContent).toContain('Sign in to your workspace');
+    expect(fixture.nativeElement.textContent).toContain('Church Management');
     expect(fixture.nativeElement.querySelector('.login-brand')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.login-footer')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('input')).toBeTruthy();
   });
 });

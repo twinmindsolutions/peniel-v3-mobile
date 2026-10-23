@@ -4,10 +4,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { IonContent, IonIcon, IonInput } from '@ionic/angular';
 import { addIcons } from 'ionicons';
-import { eyeOffOutline, eyeOutline } from 'ionicons/icons';
+import { eyeOffOutline, eyeOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import { AuthService } from '../../../core/auth/auth.service';
 import { AppButtonComponent } from '../../../shared/ui/app-button/app-button.component';
-import { AppCardComponent } from '../../../shared/ui/app-card/app-card.component';
 import { AppFeedbackStateComponent } from '../../../shared/ui/app-feedback-state/app-feedback-state.component';
 import { AppFormFieldComponent } from '../../../shared/ui/app-form-field/app-form-field.component';
 import { AppPageShellComponent } from '../../../shared/ui/app-page-shell/app-page-shell.component';
@@ -22,7 +21,6 @@ import { AppPageShellComponent } from '../../../shared/ui/app-page-shell/app-pag
     IonIcon,
     IonInput,
     AppButtonComponent,
-    AppCardComponent,
     AppFeedbackStateComponent,
     AppFormFieldComponent,
     AppPageShellComponent,
@@ -43,7 +41,7 @@ export class LoginPage {
   errorMessage = '';
 
   constructor() {
-    addIcons({ eyeOutline, eyeOffOutline });
+    addIcons({ eyeOutline, eyeOffOutline, shieldCheckmarkOutline });
   }
 
   async submit(): Promise<void> {

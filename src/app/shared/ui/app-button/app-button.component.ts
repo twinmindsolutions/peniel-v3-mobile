@@ -10,7 +10,7 @@ import { IonButton, IonSpinner } from '@ionic/angular';
 })
 export class AppButtonComponent {
   @Input() type: 'button' | 'submit' = 'button';
-  @Input() variant: 'primary' | 'secondary' | 'ghost' = 'primary';
+  @Input() variant: 'primary' | 'navy' | 'secondary' | 'ghost' = 'primary';
   @Input() disabled = false;
   @Input() loading = false;
   @Input() expand: 'block' | 'full' | undefined = undefined;

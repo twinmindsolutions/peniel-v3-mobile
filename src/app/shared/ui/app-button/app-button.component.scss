@@ -16,6 +16,14 @@
   --box-shadow: none;
 }
 
+.button--navy {
+  --background: var(--peniel-navy);
+  --background-activated: var(--peniel-navy-pressed);
+  --background-focused: var(--peniel-navy-pressed);
+  --background-hover: #1b3969;
+  --box-shadow: 0 8px 18px rgba(20, 40, 74, 0.18);
+}
+
 .button--ghost {
   --box-shadow: none;
 }
