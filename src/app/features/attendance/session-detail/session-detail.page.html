@@ -14,7 +14,7 @@
         <div class="session-heading"><div><p class="eyebrow">{{ session()!.status }}</p><h2 id="session-title">{{ session()!.service_type_name_snapshot || session()!.service_type.name }}</h2></div><span class="status">{{ session()!.status }}</span></div>
         <dl><div><dt>Date</dt><dd>{{ formatDate(session()!.local_occurrence_date) }}</dd></div><div><dt>Time</dt><dd>{{ formatTime(session()!.scheduled_start) }} – {{ formatTime(session()!.scheduled_end) }}</dd></div><div><dt>Branch</dt><dd>{{ session()!.branch.name }}</dd></div><div><dt>Group</dt><dd>{{ session()!.group?.name || 'All members' }}</dd></div></dl>
       </section>
-      @if (attendance.canRecordAttendance() && session()!.status === 'scheduled') {
+      @if (attendance.canRecordAttendance() && session()!.status === 'scheduled' && !recordingUnavailableMessage()) {
         <section class="check-in-card" aria-labelledby="check-in-title">
           <p class="eyebrow">Manual check-in</p>
           <h2 id="check-in-title">Check in a member</h2>
@@ -49,6 +49,8 @@
             </div>
           }
         </section>
+      } @else if (attendance.canRecordAttendance() && recordingUnavailableMessage(); as recordingMessage) {
+        <p class="muted recording-unavailable" role="status">{{ recordingMessage }}</p>
       }
       @if (summary()) {
         <section class="summary-card" aria-labelledby="summary-title">

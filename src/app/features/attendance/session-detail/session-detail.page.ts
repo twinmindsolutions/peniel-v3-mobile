@@ -119,14 +119,24 @@ export class SessionDetailPage {
   }
 
   selectMember(member: AttendanceMemberLookup): void {
-    if (!this.attendance.canRecordAttendance() || this.checkInInFlight()) return;
+    if (!this.attendance.canRecordAttendance() || this.checkInInFlight() || this.recordingUnavailableMessage()) return;
     this.selectedMember.set(member);
+  }
+
+  recordingUnavailableMessage(): string | null {
+    const currentSession = this.session();
+    return currentSession ? getRecordingUnavailableMessage(currentSession, Date.now()) : null;
   }
 
   async confirmSelectedMember(): Promise<void> {
     const member = this.selectedMember();
     const organizationId = this.workspace.selectedOrganizationId();
     const branchId = this.workspace.selectedBranchId();
+    const unavailableMessage = this.recordingUnavailableMessage();
+    if (unavailableMessage) {
+      await this.notifications.warning(unavailableMessage);
+      return;
+    }
     if (!member || !organizationId || !branchId || !this.attendance.canRecordAttendance() || this.checkInInFlight()) return;
     const confirmed = await this.notifications.confirm({
       title: 'Confirm check-in',
@@ -169,11 +179,17 @@ export class SessionDetailPage {
     } else if (status === 403 || status === 404) {
       await this.notifications.error('This session is no longer available for attendance recording.');
     } else if (status === 409) {
-      await this.notifications.warning('Attendance recording is not open or this session has closed.');
+      await this.notifications.warning(this.safeBackendDetail(error) ?? 'Attendance recording is unavailable for this session.');
       await this.refreshSummary();
     } else {
       await this.notifications.error('We could not record this check-in. Please try again when the session is available.');
     }
+  }
+
+  private safeBackendDetail(error: unknown): string | null {
+    if (!(error instanceof HttpErrorResponse)) return null;
+    const detail = error.error?.detail;
+    return typeof detail === 'string' && detail.trim() ? detail : null;
   }
 
   async refreshSummary(): Promise<void> {
@@ -197,4 +213,17 @@ export class SessionDetailPage {
 
   formatDate(value: string): string { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)); }
   formatTime(value: string): string { return new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date(value)); }
+}
+
+export function getRecordingUnavailableMessage(session: AttendanceSession, now: number): string | null {
+  if (session.status !== 'scheduled') {
+    return 'This session is cancelled or closed for normal attendance recording.';
+  }
+  const start = Date.parse(session.scheduled_start);
+  const end = Date.parse(session.scheduled_end);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  if (now < start) return 'Attendance recording has not opened for this session.';
+  const deadline = end + session.closure_after_hours_snapshot * 60 * 60 * 1000;
+  if (now >= deadline) return 'The attendance recording deadline has passed.';
+  return null;
 }

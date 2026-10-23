@@ -2,6 +2,8 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
 import { SessionDetailPage } from './session-detail.page';
+import { getRecordingUnavailableMessage } from './session-detail.page';
+import { AttendanceSession } from '../../../core/attendance/attendance.models';
 import { AttendanceSessionApiService } from '../../../core/attendance/attendance-session-api.service';
 import { AttendancePermissionService } from '../../../core/attendance/attendance-permission.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
@@ -29,5 +31,26 @@ describe('SessionDetailPage', () => {
 
   it('creates a detail view for an authorized workspace', () => {
     expect(fixture.componentInstance.sessionId).toBe('session-1');
+  });
+
+  it('recognizes a session whose recording deadline has passed', () => {
+    const session = {
+      status: 'scheduled',
+      scheduled_start: '2026-10-16T21:00:00Z',
+      scheduled_end: '2026-10-16T22:30:00Z',
+      closure_after_hours_snapshot: 24,
+    };
+    expect(getRecordingUnavailableMessage(session as unknown as AttendanceSession, Date.parse('2026-10-23T12:00:00Z'))).toBe('The attendance recording deadline has passed.');
+  });
+
+  it('recognizes the not-open and closed recording windows', () => {
+    const session = {
+      status: 'scheduled',
+      scheduled_start: '2026-10-23T21:00:00Z',
+      scheduled_end: '2026-10-23T22:30:00Z',
+      closure_after_hours_snapshot: 24,
+    };
+    expect(getRecordingUnavailableMessage(session as unknown as AttendanceSession, Date.parse('2026-10-23T20:00:00Z'))).toBe('Attendance recording has not opened for this session.');
+    expect(getRecordingUnavailableMessage({ ...session, status: 'closed' } as unknown as AttendanceSession, Date.parse('2026-10-23T20:00:00Z'))).toBe('This session is cancelled or closed for normal attendance recording.');
   });
 });
