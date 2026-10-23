@@ -1,2 +1,43 @@
-// For information on how to create your own theme, please refer to:
-// https://ionicframework.com/docs/theming/
+:root {
+  --peniel-primary: #204dd8;
+  --peniel-primary-contrast: #ffffff;
+  --peniel-navy: #14284a;
+  --peniel-ink: #14284a;
+  --peniel-background: #f5f7fb;
+  --peniel-surface: #ffffff;
+  --peniel-success: #159b76;
+  --peniel-danger: #c83b4a;
+  --peniel-warning: #a66a00;
+  --peniel-muted: #66758c;
+  --peniel-border: #dbe2ed;
+  --peniel-focus: #86a5ff;
+  --peniel-space-1: 4px;
+  --peniel-space-2: 8px;
+  --peniel-space-3: 12px;
+  --peniel-space-4: 16px;
+  --peniel-space-5: 20px;
+  --peniel-space-6: 24px;
+  --peniel-space-8: 32px;
+  --peniel-radius-sm: 10px;
+  --peniel-radius-md: 16px;
+  --peniel-radius-lg: 22px;
+  --peniel-shadow-card: 0 16px 40px rgba(20, 40, 74, 0.08);
+  --peniel-shadow-button: 0 8px 18px rgba(32, 77, 216, 0.2);
+
+  --ion-color-primary: var(--peniel-primary);
+  --ion-color-primary-contrast: var(--peniel-primary-contrast);
+  --ion-background-color: var(--peniel-background);
+  --ion-text-color: var(--peniel-ink);
+  --ion-color-danger: var(--peniel-danger);
+}
+
+/* Opt in by applying .dark to the document root; light mode remains the default. */
+.dark {
+  --peniel-background: #101a2c;
+  --peniel-surface: #18253b;
+  --peniel-ink: #f5f7fb;
+  --peniel-muted: #b8c5d8;
+  --peniel-border: #30415d;
+  --ion-background-color: var(--peniel-background);
+  --ion-text-color: var(--peniel-ink);
+}

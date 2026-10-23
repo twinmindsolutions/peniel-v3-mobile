@@ -1,0 +1,12 @@
+.feedback {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--peniel-space-2);
+  padding: var(--peniel-space-4) 0;
+  text-align: center;
+}
+
+.feedback--error { color: var(--peniel-danger); }
+h2 { color: var(--peniel-ink); font-size: 1rem; margin: 0; }
+p { color: var(--peniel-muted); line-height: 1.45; margin: 0; }

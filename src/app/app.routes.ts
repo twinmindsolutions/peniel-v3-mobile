@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/auth/auth.guard';
+import { authEntryGuard, launchGuard, welcomeGuard } from './core/launch/launch.guards';
 
 export const routes: Routes = [
   {
@@ -8,10 +9,16 @@ export const routes: Routes = [
     children: [
       {
         path: 'login',
+        canActivate: [authEntryGuard],
         loadComponent: () => import('./features/auth/login/login.page').then((m) => m.LoginPage),
       },
       { path: '', redirectTo: 'login', pathMatch: 'full' },
     ],
+  },
+  {
+    path: 'welcome',
+    canActivate: [welcomeGuard],
+    loadComponent: () => import('./features/welcome/welcome.page').then((m) => m.WelcomePage),
   },
   {
     path: 'app',
@@ -27,8 +34,8 @@ export const routes: Routes = [
   },
   {
     path: '',
-    redirectTo: 'auth/login',
-    pathMatch: 'full',
+    canActivate: [launchGuard],
+    children: [],
   },
-  { path: '**', redirectTo: 'auth/login' },
+  { path: '**', redirectTo: '' },
 ];

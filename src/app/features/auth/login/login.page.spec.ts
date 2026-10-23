@@ -16,7 +16,8 @@ describe('LoginPage', () => {
 
   it('renders the reactive sign-in form', () => {
     fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Sign in to Peniel');
+    expect(fixture.nativeElement.textContent).toContain('Welcome back');
+    expect(fixture.nativeElement.querySelector('.login-brand')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('input')).toBeTruthy();
   });
 });

@@ -1,0 +1,38 @@
+.welcome-page {
+  background: var(--peniel-navy);
+  color: #fff;
+  min-height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+.welcome-backdrop {
+  background-image: linear-gradient(180deg, rgba(20, 40, 74, 0.34), rgba(20, 40, 74, 0.95)), url('/assets/welcome-worship.png');
+  background-position: center;
+  background-size: cover;
+  inset: 0;
+  position: absolute;
+}
+
+.welcome-content {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100svh;
+  padding: max(28px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  position: relative;
+  z-index: 1;
+}
+
+.brand-lockup { align-items: center; display: flex; font-size: 1.25rem; font-weight: 800; gap: 10px; }
+.brand-lockup img { height: 38px; width: 38px; }
+.welcome-copy { margin-block: auto 32px; max-width: 440px; padding-top: 28vh; }
+.eyebrow { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; opacity: 0.82; text-transform: uppercase; }
+h1 { font-size: clamp(2.25rem, 11vw, 4rem); line-height: 1.04; margin: 14px 0; }
+.welcome-copy > p:last-child { font-size: 1.05rem; line-height: 1.5; margin: 0; opacity: 0.9; }
+
+@media (max-height: 700px) {
+  .welcome-copy { padding-top: 12vh; }
+  h1 { font-size: clamp(2rem, 9vw, 3rem); }
+}

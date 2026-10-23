@@ -34,26 +34,15 @@
 
 /* @import "@ionic/angular/css/palettes/dark.always.css"; */
 /* @import "@ionic/angular/css/palettes/dark.class.css"; */
-@import '@ionic/angular/css/palettes/dark.system.css';
-
-:root {
-  --peniel-ink: #13233f;
-  --peniel-muted: #5c6b82;
-  --peniel-surface: #ffffff;
-  --peniel-space-1: 4px;
-  --peniel-space-2: 8px;
-  --peniel-space-3: 12px;
-  --peniel-space-4: 16px;
-  --peniel-space-6: 24px;
-  --peniel-space-8: 32px;
-  --ion-color-primary: #1d4ed8;
-  --ion-color-primary-contrast: #ffffff;
-  --ion-background-color: #f6f8fc;
-  --ion-text-color: var(--peniel-ink);
-}
-
 body {
   margin: 0;
   background: var(--ion-background-color);
   font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }

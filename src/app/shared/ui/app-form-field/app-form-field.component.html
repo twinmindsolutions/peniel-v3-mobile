@@ -1,0 +1,9 @@
+<div class="field" [class.field--invalid]="error">
+  <label>
+    <span>{{ label }}</span>
+    @if (required) { <span aria-hidden="true">*</span> }
+  </label>
+  <div class="control"><ng-content /></div>
+  @if (error) { <p class="error" role="alert">{{ error }}</p> }
+  @if (hint && !error) { <p class="hint">{{ hint }}</p> }
+</div>

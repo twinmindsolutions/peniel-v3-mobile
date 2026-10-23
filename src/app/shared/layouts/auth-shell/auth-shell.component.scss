@@ -1,5 +1,5 @@
 .auth-shell {
-  background: linear-gradient(145deg, #eef4ff 0%, #f8fafc 55%, #ffffff 100%);
+  background: var(--peniel-background);
   min-height: 100%;
 }
 
@@ -13,13 +13,4 @@
   padding: var(--peniel-space-4);
 }
 
-.mark {
-  align-items: center;
-  background: var(--ion-color-primary);
-  border-radius: 10px;
-  color: white;
-  display: flex;
-  height: 34px;
-  justify-content: center;
-  width: 34px;
-}
+.mark { height: 34px; width: 34px; }

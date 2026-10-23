@@ -1,0 +1,8 @@
+<section class="feedback" [class.feedback--error]="kind === 'error'" [attr.role]="kind === 'error' ? 'alert' : 'status'">
+  @if (kind === 'loading') { <ion-spinner name="crescent" aria-hidden="true" /> }
+  @if (title) { <h2>{{ title }}</h2> }
+  @if (message) { <p>{{ message }}</p> }
+  @if (kind === 'error') {
+    <ion-button fill="outline" size="small" (click)="retry.emit()">{{ retryLabel }}</ion-button>
+  }
+</section>

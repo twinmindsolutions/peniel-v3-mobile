@@ -2,16 +2,31 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ReactiveFormsModule, Validators, FormBuilder } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { IonButton, IonContent, IonIcon, IonInput, IonItem, IonLabel, IonSpinner } from '@ionic/angular';
+import { IonContent, IonIcon, IonInput } from '@ionic/angular';
 import { addIcons } from 'ionicons';
 import { eyeOffOutline, eyeOutline } from 'ionicons/icons';
 import { AuthService } from '../../../core/auth/auth.service';
+import { AppButtonComponent } from '../../../shared/ui/app-button/app-button.component';
+import { AppCardComponent } from '../../../shared/ui/app-card/app-card.component';
+import { AppFeedbackStateComponent } from '../../../shared/ui/app-feedback-state/app-feedback-state.component';
+import { AppFormFieldComponent } from '../../../shared/ui/app-form-field/app-form-field.component';
+import { AppPageShellComponent } from '../../../shared/ui/app-page-shell/app-page-shell.component';
 
 @Component({
   selector: 'app-login',
   templateUrl: './login.page.html',
   styleUrl: './login.page.scss',
-  imports: [ReactiveFormsModule, IonButton, IonContent, IonIcon, IonInput, IonItem, IonLabel, IonSpinner],
+  imports: [
+    ReactiveFormsModule,
+    IonContent,
+    IonIcon,
+    IonInput,
+    AppButtonComponent,
+    AppCardComponent,
+    AppFeedbackStateComponent,
+    AppFormFieldComponent,
+    AppPageShellComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LoginPage {
@@ -64,5 +79,17 @@ export class LoginPage {
       return 'Peniel is temporarily unavailable. Please try again.';
     }
     return 'We could not sign you in. Check your connection and try again.';
+  }
+
+  get emailError(): string {
+    return this.form.controls.email.touched && this.form.controls.email.invalid
+      ? 'Enter a valid email address.'
+      : '';
+  }
+
+  get passwordError(): string {
+    return this.form.controls.password.touched && this.form.controls.password.invalid
+      ? 'Enter your password.'
+      : '';
   }
 }

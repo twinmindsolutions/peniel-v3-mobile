@@ -1,0 +1,13 @@
+.field { display: grid; gap: var(--peniel-space-2); }
+
+label {
+  color: var(--peniel-ink);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+label span + span { color: var(--peniel-danger); margin-inline-start: 2px; }
+.control { min-width: 0; }
+.hint, .error { font-size: 0.8rem; margin: 0; }
+.hint { color: var(--peniel-muted); }
+.error { color: var(--peniel-danger); }

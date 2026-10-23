@@ -1,0 +1,21 @@
+.button {
+  --border-radius: var(--peniel-radius-sm);
+  --box-shadow: var(--peniel-shadow-button);
+  --padding-bottom: 14px;
+  --padding-top: 14px;
+  min-height: 48px;
+}
+
+.button--secondary {
+  --background: var(--peniel-surface);
+  --background-activated: var(--peniel-background);
+  --color: var(--peniel-primary);
+  --border-color: var(--peniel-primary);
+  --border-style: solid;
+  --border-width: 1px;
+  --box-shadow: none;
+}
+
+.button--ghost {
+  --box-shadow: none;
+}

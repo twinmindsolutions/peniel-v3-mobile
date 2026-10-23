@@ -1,0 +1,7 @@
+.card {
+  background: var(--peniel-surface);
+  border: 1px solid var(--peniel-border);
+  border-radius: var(--peniel-radius-lg);
+  box-shadow: var(--peniel-shadow-card);
+  padding: clamp(var(--peniel-space-5), 6vw, var(--peniel-space-8));
+}

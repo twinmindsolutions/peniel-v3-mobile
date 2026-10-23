@@ -1,0 +1,15 @@
+<ion-button
+  class="button"
+  [class.button--secondary]="variant === 'secondary'"
+  [class.button--ghost]="variant === 'ghost'"
+  [disabled]="disabled || loading"
+  [expand]="expand"
+  [fill]="variant === 'ghost' ? 'clear' : 'solid'"
+  [type]="type"
+>
+  @if (loading) {
+    <ion-spinner name="crescent" aria-label="Loading" />
+  } @else {
+    <ng-content />
+  }
+</ion-button>

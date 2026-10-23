@@ -1,49 +1,50 @@
 <ion-content>
-  <main class="login-page">
-    <section class="login-card" aria-labelledby="login-title">
-      <p class="eyebrow">Staff access</p>
-      <h1 id="login-title">Sign in to Peniel</h1>
-      <p class="intro">Use your Peniel staff account to access your authorized workspace.</p>
-
+  <app-page-shell
+    eyebrow="Staff access"
+    title="Welcome back"
+    description="Sign in to continue to your authorized Peniel workspace."
+  >
+    <app-card class="login-card">
+      <div class="login-brand" aria-label="Peniel staff access">
+        <img src="assets/peniel-mark.svg" alt="" />
+        <span>Peniel</span>
+      </div>
       <form class="login-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
-        <ion-item lines="full">
-          <ion-label position="stacked">Email address</ion-label>
+        <app-form-field label="Email address" [error]="emailError" [required]="true">
           <ion-input
             formControlName="email"
             type="email"
             autocomplete="username"
             placeholder="you@example.com"
+            fill="outline"
+            aria-label="Email address"
           />
-        </ion-item>
-        <ion-item lines="full">
-          <ion-label position="stacked">Password</ion-label>
-          <ion-input
-            formControlName="password"
-            [type]="showPassword ? 'text' : 'password'"
-            autocomplete="current-password"
-          >
-            <ion-button
-              slot="end"
-              fill="clear"
+        </app-form-field>
+
+        <app-form-field label="Password" [error]="passwordError" [required]="true">
+          <div class="password-control">
+            <ion-input
+              formControlName="password"
+              [type]="showPassword ? 'text' : 'password'"
+              autocomplete="current-password"
+              fill="outline"
+              aria-label="Password"
+            />
+            <button
+              class="password-toggle"
               type="button"
               [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
               (click)="togglePasswordVisibility()"
             >
               <ion-icon [name]="showPassword ? 'eye-off-outline' : 'eye-outline'" aria-hidden="true" />
-            </ion-button>
-          </ion-input>
-        </ion-item>
+            </button>
+          </div>
+        </app-form-field>
         @if (errorMessage) {
-          <p class="error-message" role="alert">{{ errorMessage }}</p>
+          <app-feedback-state kind="error" [message]="errorMessage" [title]="'Sign-in unsuccessful'" />
         }
-        <ion-button expand="block" type="submit" [disabled]="submitting">
-          @if (submitting) {
-            <ion-spinner name="crescent" aria-hidden="true" />
-          } @else {
-            Sign in
-          }
-        </ion-button>
+        <app-button type="submit" expand="block" [disabled]="form.invalid" [loading]="submitting">Sign in</app-button>
       </form>
-    </section>
-  </main>
+    </app-card>
+  </app-page-shell>
 </ion-content>
