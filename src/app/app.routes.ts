@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard } from './core/auth/auth.guard';
+import { authGuard, workspaceGuard } from './core/auth/auth.guard';
 import { authEntryGuard, launchGuard, welcomeGuard } from './core/launch/launch.guards';
 
 export const routes: Routes = [
@@ -26,10 +26,15 @@ export const routes: Routes = [
     loadComponent: () => import('./shared/layouts/authenticated-shell/authenticated-shell.component').then((m) => m.AuthenticatedShellComponent),
     children: [
       {
+        path: 'workspace',
+        loadComponent: () => import('./features/workspace/workspace.page').then((m) => m.WorkspacePage),
+      },
+      {
         path: 'home',
+        canActivate: [workspaceGuard],
         loadComponent: () => import('./home/home.page').then((m) => m.HomePage),
       },
-      { path: '', redirectTo: 'home', pathMatch: 'full' },
+      { path: '', redirectTo: 'workspace', pathMatch: 'full' },
     ],
   },
   {

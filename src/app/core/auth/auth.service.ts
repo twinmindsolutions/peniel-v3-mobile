@@ -51,6 +51,7 @@ export class AuthService {
       const response = await firstValueFrom(this.api.login(email, password));
       await this.persistRefreshCredential(response);
       this.setAuthenticated(response);
+      await this.resolveWorkspace(response.user.id);
     } catch (error: unknown) {
       this.accessToken = null;
       this.userSignal.set(null);
@@ -98,6 +99,8 @@ export class AuthService {
       await this.performRefresh(this.sessionVersion, credential);
       if (!this.isAuthenticated()) {
         this.statusSignal.set('unauthenticated');
+      } else {
+        await this.resolveWorkspace(this.userSignal()?.id ?? '');
       }
     } catch {
       this.accessToken = null;
@@ -147,6 +150,15 @@ export class AuthService {
     this.accessToken = response.access_token;
     this.userSignal.set(response.user);
     this.statusSignal.set('authenticated');
+  }
+
+  private async resolveWorkspace(userId: string): Promise<void> {
+    if (!userId) return;
+    try {
+      await this.workspace.resolveForUser(userId);
+    } catch {
+      // Authentication remains valid; the protected workspace flow exposes retryable discovery errors.
+    }
   }
 
   private async clearLocalSession(incrementVersion = true): Promise<void> {

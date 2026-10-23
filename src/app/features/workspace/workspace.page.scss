@@ -1,0 +1,66 @@
+ion-content { --background: var(--peniel-background); }
+
+.workspace-panel,
+.selected-context {
+  background: var(--peniel-surface);
+  border: 1px solid var(--peniel-border);
+  border-radius: var(--peniel-radius-md);
+}
+
+.workspace-panel { margin-top: var(--peniel-space-6); }
+.choice-section { padding: var(--peniel-space-5); }
+
+.section-heading { align-items: flex-start; display: flex; gap: var(--peniel-space-3); margin-bottom: var(--peniel-space-4); }
+
+.section-icon,
+.choice__icon,
+.selected-context__icon {
+  align-items: center;
+  background: rgba(32, 77, 216, 0.09);
+  border-radius: var(--peniel-radius-sm);
+  color: var(--peniel-primary);
+  display: inline-flex;
+  flex: 0 0 40px;
+  height: 40px;
+  justify-content: center;
+}
+
+h2 { color: var(--peniel-ink); font-size: var(--peniel-type-section-heading); margin: 0; }
+.choices { display: grid; gap: var(--peniel-space-3); }
+
+.choice {
+  align-items: center;
+  background: var(--peniel-background);
+  border: 1px solid var(--peniel-border);
+  border-radius: var(--peniel-radius-md);
+  color: var(--peniel-ink);
+  display: flex;
+  gap: var(--peniel-space-3);
+  min-height: 72px;
+  padding: var(--peniel-space-4);
+  text-align: left;
+  width: 100%;
+}
+
+.choice:focus-visible { outline: 3px solid var(--peniel-focus); outline-offset: 2px; }
+.choice__copy { display: grid; flex: 1; gap: var(--peniel-space-1); min-width: 0; }
+.choice__name { font-size: var(--peniel-type-body); font-weight: 700; }
+.choice__meta,
+.selected-context__label { color: var(--peniel-muted); }
+.choice__indicator { color: var(--peniel-primary); font-size: 1.7rem; line-height: 1; }
+
+.selected-context {
+  align-items: center;
+  display: flex;
+  gap: var(--peniel-space-3);
+  margin-top: var(--peniel-space-5);
+  padding: var(--peniel-space-4);
+}
+
+.selected-context > div { display: grid; flex: 1; gap: var(--peniel-space-1); min-width: 0; }
+.selected-context strong { color: var(--peniel-ink); font-size: var(--peniel-type-body); }
+.selected-context__check { color: var(--peniel-success); display: inline-flex; font-size: 1.35rem; }
+
+.workspace-continue { margin-top: var(--peniel-space-6); }
+.workspace-change { margin-top: var(--peniel-space-5); }
+.workspace-signout { margin-top: var(--peniel-space-2); }

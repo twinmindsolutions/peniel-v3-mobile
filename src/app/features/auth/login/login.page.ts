@@ -59,7 +59,7 @@ export class LoginPage {
     try {
       const { email, password } = this.form.getRawValue();
       await this.auth.login(email.trim(), password);
-      await this.router.navigateByUrl('/app/home');
+      await this.router.navigateByUrl('/app/workspace');
     } catch (error: unknown) {
       const message = this.messageFor(error);
       if (error instanceof HttpErrorResponse && error.status === 401) {

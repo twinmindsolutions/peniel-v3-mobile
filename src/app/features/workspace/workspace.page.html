@@ -1,0 +1,110 @@
+<ion-content>
+  <app-page-shell
+    eyebrow="Peniel workspace"
+    title="Choose your workspace"
+    description="Select an authorized church and branch to continue."
+  >
+    @if (workspace.loading() && !workspace.organizations().length) {
+      <app-feedback-state kind="loading" title="Loading workspaces" message="Checking your authorized access." />
+    } @else if (workspace.error()) {
+      <app-feedback-state
+        kind="error"
+        title="Workspace unavailable"
+        [message]="workspace.error()?.message ?? ''"
+        retryLabel="Try again"
+        (retry)="resolve()"
+      />
+      <app-button class="workspace-signout" variant="ghost" expand="block" (click)="logout()">Sign out</app-button>
+    } @else if (!workspace.organizations().length) {
+      <app-feedback-state
+        kind="empty"
+        title="No authorized workspace"
+        message="Your account does not currently have access to an active church workspace."
+      />
+      <app-button class="workspace-signout" variant="ghost" expand="block" (click)="logout()">Sign out</app-button>
+    } @else if (workspace.organizationSelectionRequired() && !workspace.selectedOrganization()) {
+      <section class="workspace-panel choice-section" aria-labelledby="organization-heading">
+        <div class="section-heading">
+          <span class="section-icon" aria-hidden="true"><ion-icon name="business-outline" /></span>
+          <div>
+            <h2 id="organization-heading">Select an organization</h2>
+            <p>Choose the church workspace you want to manage.</p>
+          </div>
+        </div>
+        <div class="choices">
+          @for (organization of workspace.organizations(); track organization.id) {
+            <button class="choice" type="button" [attr.aria-label]="'Select ' + organization.name" (click)="chooseOrganization(organization.id)">
+              <span class="choice__icon" aria-hidden="true"><ion-icon name="business-outline" /></span>
+              <span class="choice__copy">
+                <span class="choice__name">{{ organization.name }}</span>
+                <span class="choice__meta">Organization workspace</span>
+              </span>
+              <span class="choice__indicator" aria-hidden="true">›</span>
+            </button>
+          }
+        </div>
+      </section>
+      <app-button class="workspace-signout" variant="ghost" expand="block" (click)="logout()">Sign out</app-button>
+    } @else if (workspace.selectedOrganization()) {
+      <section class="selected-context" aria-live="polite">
+        <span class="selected-context__icon" aria-hidden="true"><ion-icon name="business-outline" /></span>
+        <div>
+          <span class="selected-context__label">Organization selected</span>
+          <strong>{{ workspace.selectedOrganization()?.name }}</strong>
+        </div>
+        <span class="selected-context__check" aria-label="Selected"><ion-icon name="checkmark-circle" /></span>
+      </section>
+
+      @if (workspace.loading() && !workspace.branches().length) {
+        <app-feedback-state kind="loading" title="Loading branches" message="Checking your authorized branches." />
+      } @else if (!workspace.branches().length) {
+        <app-feedback-state
+          kind="empty"
+          title="No accessible branch"
+          message="This organization has no active branch available to your account."
+        />
+      } @else if (workspace.branchSelectionRequired() && !workspace.selectedBranch()) {
+        <section class="workspace-panel choice-section" aria-labelledby="branch-heading">
+          <div class="section-heading">
+            <span class="section-icon" aria-hidden="true"><ion-icon name="git-branch-outline" /></span>
+            <div>
+              <h2 id="branch-heading">Select a branch</h2>
+              <p>Choose the branch workspace for this session.</p>
+            </div>
+          </div>
+          <div class="choices">
+            @for (branch of workspace.branches(); track branch.id) {
+              <button class="choice" type="button" [attr.aria-label]="'Select ' + branch.name" (click)="chooseBranch(branch.id)">
+                <span class="choice__icon" aria-hidden="true"><ion-icon name="git-branch-outline" /></span>
+                <span class="choice__copy">
+                  <span class="choice__name">{{ branch.name }}</span>
+                  <span class="choice__meta">Branch workspace</span>
+                </span>
+                <span class="choice__indicator" aria-hidden="true">›</span>
+              </button>
+            }
+          </div>
+        </section>
+      } @else if (workspace.selectedBranch()) {
+        <section class="selected-context" aria-live="polite">
+          <span class="selected-context__icon" aria-hidden="true"><ion-icon name="git-branch-outline" /></span>
+          <div>
+            <span class="selected-context__label">Branch selected</span>
+            <strong>{{ workspace.selectedBranch()?.name }}</strong>
+          </div>
+          <span class="selected-context__check" aria-label="Selected"><ion-icon name="checkmark-circle" /></span>
+        </section>
+        @if (workspace.usableWorkspaceResolved()) {
+          <app-button class="workspace-continue" variant="navy" expand="block" (click)="continueToHome()">Continue</app-button>
+        } @else if (workspace.loading()) {
+          <app-feedback-state kind="loading" title="Finishing setup" message="Loading workspace permissions." />
+        }
+      }
+
+      @if (workspace.organizationSelectionRequired()) {
+        <app-button class="workspace-change" variant="ghost" expand="block" (click)="workspace.clearOrganizationSelection()">Change organization</app-button>
+      }
+      <app-button class="workspace-signout" variant="ghost" expand="block" (click)="logout()">Sign out</app-button>
+    }
+  </app-page-shell>
+</ion-content>
