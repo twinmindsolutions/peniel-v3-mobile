@@ -8,13 +8,16 @@ import { routes } from './app/app.routes';
 import { AppComponent } from './app/app.component';
 import { AuthService } from './app/core/auth/auth.service';
 import { authInterceptor } from './app/core/auth/auth.interceptor';
+import { workspaceContextInterceptor } from './app/core/workspace/workspace-context.interceptor';
+import { WorkspaceAuthorizationService } from './app/core/workspace/workspace-authorization.service';
 
 bootstrapApplication(AppComponent, {
   providers: [
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
     provideIonicAngular(),
-    provideHttpClient(withInterceptors([authInterceptor])),
+    provideHttpClient(withInterceptors([authInterceptor, workspaceContextInterceptor])),
     provideAppInitializer(() => inject(AuthService).initialize()),
+    provideAppInitializer(() => inject(WorkspaceAuthorizationService).initialize()),
     provideRouter(routes, withPreloading(PreloadAllModules), withComponentInputBinding()),
   ],
 });

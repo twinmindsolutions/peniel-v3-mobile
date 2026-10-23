@@ -23,3 +23,24 @@ h1 {
   font-size: 1.05rem;
   line-height: 1.6;
 }
+
+.attendance-access {
+  margin-top: var(--peniel-space-8);
+  padding: var(--peniel-space-5);
+  border: 1px solid var(--peniel-border);
+  border-radius: var(--peniel-radius-lg);
+  background: var(--peniel-surface);
+  box-shadow: var(--peniel-shadow-sm);
+}
+
+.attendance-access h2 {
+  margin: var(--peniel-space-2) 0;
+  color: var(--peniel-ink);
+  font-size: 1.1rem;
+}
+
+.attendance-access p:last-child {
+  margin: 0;
+  color: var(--peniel-muted);
+  line-height: 1.55;
+}

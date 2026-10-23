@@ -25,6 +25,7 @@ export class WorkspaceStateService {
   private readonly attendanceCapabilitiesSignal = signal<AttendanceCapabilities | null>(null);
   private readonly loadingSignal = signal(false);
   private readonly errorSignal = signal<WorkspaceErrorState | null>(null);
+  private readonly authorizationVerifiedSignal = signal(false);
 
   readonly organizations = this.organizationsSignal.asReadonly();
   readonly branches = this.branchesSignal.asReadonly();
@@ -33,6 +34,7 @@ export class WorkspaceStateService {
   readonly attendanceCapabilities = this.attendanceCapabilitiesSignal.asReadonly();
   readonly loading = this.loadingSignal.asReadonly();
   readonly error = this.errorSignal.asReadonly();
+  readonly authorizationVerified = this.authorizationVerifiedSignal.asReadonly();
 
   readonly selectedOrganization = computed(() => {
     const id = this.selectedOrganizationIdSignal();
@@ -165,6 +167,10 @@ export class WorkspaceStateService {
 
   async refreshAuthorization(): Promise<void> {
     if (!this.activeUserId) return;
+    if (this.resolutionPromise) {
+      await this.resolutionPromise;
+      return;
+    }
     await this.resolveForUser(this.activeUserId, true);
   }
 
@@ -189,6 +195,7 @@ export class WorkspaceStateService {
     this.selectedOrganizationIdSignal.set(null);
     this.errorSignal.set(null);
     this.loadingSignal.set(false);
+    this.authorizationVerifiedSignal.set(false);
     this.activeUserId = null;
     this.resolvedUserId = null;
     this.resolutionPromise = undefined;
@@ -196,6 +203,7 @@ export class WorkspaceStateService {
 
   private async resolveWorkspace(userId: string): Promise<void> {
     this.resolvedUserId = null;
+    this.authorizationVerifiedSignal.set(false);
     const savedOrganizationId = await this.readPreference(userId, 'organization');
     const savedBranchId = await this.readPreference(userId, 'branch');
     if (this.activeUserId !== userId) return;
@@ -214,6 +222,7 @@ export class WorkspaceStateService {
       this.selectBranch(savedBranchId);
     }
     this.resolvedUserId = userId;
+    this.authorizationVerifiedSignal.set(true);
   }
 
   private async readPreference(userId: string, scope: 'organization' | 'branch'): Promise<string | null> {

@@ -5,6 +5,7 @@ import { addIcons } from 'ionicons';
 import { businessOutline, checkmarkCircle, gitBranchOutline } from 'ionicons/icons';
 import { AuthService } from '../../core/auth/auth.service';
 import { WorkspaceStateService } from '../../core/workspace/workspace-state.service';
+import { WorkspaceAuthorizationService } from '../../core/workspace/workspace-authorization.service';
 import { AppButtonComponent } from '../../shared/ui/app-button/app-button.component';
 import { AppFeedbackStateComponent } from '../../shared/ui/app-feedback-state/app-feedback-state.component';
 import { AppPageShellComponent } from '../../shared/ui/app-page-shell/app-page-shell.component';
@@ -20,6 +21,7 @@ export class WorkspacePage implements OnInit {
   readonly workspace = inject(WorkspaceStateService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly authorization = inject(WorkspaceAuthorizationService);
 
   constructor() {
     addIcons({ businessOutline, checkmarkCircle, gitBranchOutline });
@@ -36,7 +38,7 @@ export class WorkspacePage implements OnInit {
       return;
     }
     try {
-      await this.workspace.resolveForUser(userId);
+      await this.authorization.refresh('workspace-entry');
       if (this.workspace.usableWorkspaceResolved()) {
         await this.router.navigateByUrl('/app/home');
       }

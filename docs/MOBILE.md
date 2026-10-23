@@ -96,4 +96,63 @@ revocation, or account change, preventing a different account from inheriting a 
 
 The `/app/workspace` page displays only backend-returned organizations and branches, provides retry
 and safe empty states, and keeps sign-out available. It does not invent role labels; backend capability
-flags remain authoritative. Workspace-scoped HTTP headers are intentionally deferred to M1.4E.
+flags remain authoritative.
+
+## Workspace-scoped HTTP requests (M1.4E)
+
+`workspaceContextInterceptor` runs after the Bearer authentication interceptor. For requests to
+the configured API origin and `/api/v1` path, it adds the currently validated
+`X-Organization-ID` and, when a validated branch is selected, `X-Branch-ID`. It reads only the
+in-memory `WorkspaceStateService` signals; it never reads workspace IDs from Preferences.
+
+Authentication endpoints and workspace discovery requests (organization, branch, and attendance
+capabilities discovery) are excluded. Requests whose organization URL does not match the selected
+organization, requests to another origin, and requests carrying conflicting explicit scope headers
+are passed through unchanged. Existing matching explicit headers are preserved.
+
+These headers select a requested scope only. Django derives the authenticated principal and validates
+organization and branch access before establishing transaction-local context; PostgreSQL RLS remains
+the authorization boundary. The interceptor does not retry, translate, or suppress 401, 403, or 404
+responses. Clearing or switching workspace state changes the headers on subsequent requests.
+
+## Attendance permissions (M1.4F)
+
+`AttendancePermissionService` is the reusable reactive UI permission layer for future attendance
+features. It consumes only the current `WorkspaceStateService` signals and the backend's
+`AttendanceCapabilities` response. Missing, stale, unresolved, or organization-mismatched
+capabilities are denied by default.
+
+The mapping is direct: `can_view_attendance` uses `view_branch_ids`; session management, recurring
+schedules, annual generation, settings, and service types use their corresponding backend booleans
+and branch ID lists; organization service types use `can_manage_organization_service_types`.
+Ad-hoc creation requires the selected branch's `ad_hoc_scopes` entry. `selected_groups` permits only
+its listed group IDs, while `all_compatible_groups` is the backend-defined unrestricted group scope.
+An empty `selected_groups` list remains denied.
+
+The service intersects capability flags with the currently discovered organization and branch, and
+clears immediately when workspace state changes or is invalidated. These checks are for navigation
+and UI availability only; every backend operation must revalidate authorization and RLS. M1.4G will
+address capability-driven navigation and assignment-change recovery.
+
+## Authorization refresh and recovery (M1.4G)
+
+`WorkspaceAuthorizationService` coordinates single-flight authorization refreshes. Refreshes are
+triggered when the app resumes, when the workspace screen is entered, and after relevant scoped
+403/404 responses. Failed requests are not replayed, and ordinary 403/404 responses are preserved
+for the caller.
+
+Workspace resolution marks authorization unverified while refreshing. Attendance permissions therefore
+fail closed during refresh or network failure instead of treating cached capabilities as newly
+verified. Successful refreshes revalidate the saved organization and branch IDs against fresh
+discovery data. Revoked or deactivated scopes are removed; valid alternative organizations or
+branches remain available through the workspace screen. Logout and session invalidation clear the
+workspace and invalidate pending refresh state.
+
+401 responses remain authentication/session failures and continue through the existing AuthService
+refresh flow. A 403 is treated as an operation-level permission denial unless refreshed discovery
+shows the workspace is no longer available. A concealed 404 is treated as an unavailable resource;
+it may trigger one bounded authorization refresh but never reveals whether a protected resource
+exists. Network/server failures remain retryable errors and do not silently grant access.
+
+The home page currently exposes only a safe attendance-access status. No attendance recording,
+session, or offline synchronization screens are linked until those features are implemented.

@@ -13,5 +13,18 @@
       title="Your workspace is coming soon"
       message="Sign-in and organization selection will be connected in the next phase."
     />
+    <section class="attendance-access" aria-labelledby="attendance-access-title">
+      <p class="eyebrow">Attendance</p>
+      @if (!attendance.resolved()) {
+        <h2 id="attendance-access-title">Attendance access is being verified</h2>
+        <p>Your current workspace permissions must be confirmed before attendance tools are shown.</p>
+      } @else if (attendance.canViewAttendance()) {
+        <h2 id="attendance-access-title">Attendance access is available</h2>
+        <p>Attendance tools for this branch will appear here when the feature is enabled.</p>
+      } @else {
+        <h2 id="attendance-access-title">Attendance access is unavailable</h2>
+        <p>Your current workspace does not include attendance access.</p>
+      }
+    </section>
   </main>
 </ion-content>
