@@ -2,8 +2,8 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  justify-content: center;
-  padding-block: clamp(12px, 5vh, 48px);
+  justify-content: flex-start;
+  padding-block: 0 24px;
   width: 100%;
 }
 
@@ -13,15 +13,15 @@
   display: flex;
   font-weight: 800;
   gap: var(--peniel-space-2);
-  margin-bottom: clamp(28px, 6vh, 48px);
+  margin-bottom: 26px;
 }
 
 .login-brand img { height: 42px; width: 42px; }
-.brand-name { display: block; font-size: 1.35rem; letter-spacing: -0.02em; }
-.brand-subtitle { color: var(--peniel-muted); display: block; font-size: 0.75rem; font-weight: 600; margin-top: 2px; }
-.login-eyebrow { color: var(--peniel-primary); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; margin: 0 0 var(--peniel-space-2); }
-h1 { color: var(--peniel-navy); font-size: clamp(2rem, 9vw, 2.65rem); line-height: 1.08; margin: 0 0 var(--peniel-space-3); }
-.login-description { color: var(--peniel-muted); line-height: 1.5; margin: 0 0 clamp(28px, 6vh, 44px); max-width: 360px; }
+.login-brand > div { display: flex; flex-direction: column; gap: 3px; }
+.brand-name { font-size: 1.35rem; letter-spacing: -0.02em; }
+.brand-subtitle { color: var(--peniel-muted); font-size: var(--peniel-type-caption); font-weight: 600; }
+.login-eyebrow { color: var(--peniel-primary); font-size: var(--peniel-type-caption); font-weight: 800; letter-spacing: 0.14em; margin: 0 0 8px; }
+h1 { color: var(--peniel-navy); font-size: var(--peniel-type-display); line-height: 1.08; margin: 0 0 32px; }
 .login-form { display: grid; gap: var(--peniel-space-4); }
 
 ion-input {
@@ -31,17 +31,8 @@ ion-input {
   --color: var(--peniel-ink);
   --placeholder-color: var(--peniel-muted);
   --highlight-color-focused: var(--peniel-primary);
-  color: var(--peniel-ink);
   min-height: 48px;
 }
-
-.password-control {
-  align-items: center;
-  display: flex;
-  gap: var(--peniel-space-2);
-}
-
-.password-control ion-input { flex: 1; }
 
 .password-toggle {
   align-items: center;
@@ -50,7 +41,6 @@ ion-input {
   border-radius: 8px;
   color: var(--peniel-muted);
   display: flex;
-  font-size: 1.25rem;
   min-height: 44px;
   min-width: 44px;
   justify-content: center;
@@ -65,18 +55,10 @@ ion-input {
   align-items: center;
   color: var(--peniel-muted);
   display: flex;
-  font-size: 0.76rem;
+  font-size: var(--peniel-type-caption);
   gap: var(--peniel-space-2);
   justify-content: center;
   margin-top: clamp(28px, 6vh, 48px);
-  text-align: center;
 }
 
 .login-footer ion-icon { color: var(--peniel-success); font-size: 1rem; }
-
-@media (max-height: 640px) {
-  .login-layout { justify-content: flex-start; padding-block: 8px 24px; }
-  .login-brand { margin-bottom: 24px; }
-  .login-description { margin-bottom: 24px; }
-  .login-footer { margin-top: 28px; }
-}

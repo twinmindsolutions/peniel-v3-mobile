@@ -2,12 +2,43 @@
 
 label {
   color: var(--peniel-ink);
-  font-size: 0.9rem;
+  font-size: var(--peniel-type-label);
   font-weight: 700;
 }
 
 label span + span { color: var(--peniel-danger); margin-inline-start: 2px; }
 .control { min-width: 0; }
-.hint, .error { font-size: 0.8rem; margin: 0; }
+.control--trailing { position: relative; }
+.field-input { min-width: 0; }
+.field-suffix {
+  align-items: center;
+  background: var(--peniel-surface);
+  border-radius: var(--peniel-radius-sm);
+  display: flex;
+  inset-block: 2px;
+  min-height: 44px;
+  min-width: 44px;
+  position: absolute;
+  right: 4px;
+  z-index: 2;
+}
+
+/* The projected input remains a normal form control while the reusable field owns its slot. */
+.control--trailing ::ng-deep ion-input { --padding-end: 56px; display: block; width: 100%; }
+.control--trailing ::ng-deep [field-suffix] {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--peniel-radius-sm);
+  color: var(--peniel-muted);
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+}
+.control--trailing ::ng-deep [field-suffix]:focus-visible { outline: 3px solid var(--peniel-focus); outline-offset: 2px; }
+.control--trailing ::ng-deep [field-suffix] ion-icon { font-size: 1.25rem; }
+
+.hint, .error { font-size: var(--peniel-type-caption); margin: 0; }
 .hint { color: var(--peniel-muted); }
 .error { color: var(--peniel-danger); }

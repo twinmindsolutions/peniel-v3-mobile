@@ -5,5 +5,5 @@
   text-align: center;
 }
 
-h2 { color: var(--peniel-ink); font-size: 1.15rem; }
-p { color: var(--peniel-muted); line-height: 1.5; }
+h2 { color: var(--peniel-ink); font-size: var(--peniel-type-section-heading); }
+p { color: var(--peniel-muted); font-size: var(--peniel-type-supporting); line-height: var(--peniel-leading-body); }

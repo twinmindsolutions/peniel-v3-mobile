@@ -15,4 +15,10 @@ describe('AppButtonComponent', () => {
     expect(fixture.componentInstance.loading).toBe(true);
     expect(fixture.nativeElement.querySelector('ion-spinner')).toBeTruthy();
   });
+
+  it('supports the shared navy action treatment', () => {
+    fixture.componentInstance.variant = 'navy';
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.button--navy')).toBeTruthy();
+  });
 });

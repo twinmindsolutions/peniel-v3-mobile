@@ -15,4 +15,11 @@ describe('AppFormFieldComponent', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Enter an email address.');
   });
+
+  it('supports a reusable trailing control slot', () => {
+    fixture.componentInstance.hasTrailingControl = true;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.control--trailing')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.field-suffix')).toBeTruthy();
+  });
 });

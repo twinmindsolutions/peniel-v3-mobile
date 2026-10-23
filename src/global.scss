@@ -1,3 +1,5 @@
+@import "@fontsource-variable/plus-jakarta-sans/wght.css";
+
 /*
  * App Global CSS
  * ----------------------------------------------------------------------------
@@ -37,7 +39,22 @@
 body {
   margin: 0;
   background: var(--ion-background-color);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--peniel-font-family);
+}
+
+html,
+body,
+ion-app,
+ion-content,
+ion-page,
+ion-input,
+ion-button,
+ion-label,
+ion-title,
+ion-toolbar,
+ion-alert,
+ion-modal {
+  font-family: var(--peniel-font-family);
 }
 
 button,
@@ -45,4 +62,24 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+ion-toast.peniel-toast {
+  --border-radius: var(--peniel-radius-md);
+  --box-shadow: var(--peniel-shadow-card);
+  --min-height: 56px;
+  --max-width: min( calc(100vw - 32px), 440px );
+  --start: 16px;
+  --end: 16px;
+  --bottom: calc(16px + env(safe-area-inset-bottom));
+  font-family: var(--peniel-font-family);
+}
+
+ion-toast.peniel-toast::part(message) {
+  white-space: pre-line;
+}
+
+ion-alert.peniel-alert {
+  --backdrop-opacity: 0.42;
+  font-family: var(--peniel-font-family);
 }

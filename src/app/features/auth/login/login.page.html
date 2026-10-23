@@ -10,7 +10,6 @@
       </div>
       <p class="login-eyebrow">WELCOME BACK</p>
       <h1>Sign in to your workspace</h1>
-      <p class="login-description">Enter your Peniel staff credentials to continue.</p>
 
       <form class="login-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <app-form-field label="Email address" [error]="emailError" [required]="true">
@@ -24,24 +23,24 @@
           />
         </app-form-field>
 
-        <app-form-field label="Password" [error]="passwordError" [required]="true">
-          <div class="password-control">
-            <ion-input
-              formControlName="password"
-              [type]="showPassword ? 'text' : 'password'"
-              autocomplete="current-password"
-              fill="outline"
-              aria-label="Password"
-            />
-            <button
-              class="password-toggle"
-              type="button"
-              [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
-              (click)="togglePasswordVisibility()"
-            >
-              <ion-icon [name]="showPassword ? 'eye-off-outline' : 'eye-outline'" aria-hidden="true" />
-            </button>
-          </div>
+        <app-form-field label="Password" [error]="passwordError" [required]="true" [hasTrailingControl]="true">
+          <ion-input
+            field-input
+            formControlName="password"
+            [type]="showPassword ? 'text' : 'password'"
+            autocomplete="current-password"
+            fill="outline"
+            aria-label="Password"
+          />
+          <button
+            field-suffix
+            class="password-toggle"
+            type="button"
+            [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+            (click)="togglePasswordVisibility()"
+          >
+            <ion-icon [name]="showPassword ? 'eye-off-outline' : 'eye-outline'" aria-hidden="true" />
+          </button>
         </app-form-field>
         @if (errorMessage) {
           <app-feedback-state kind="error" [message]="errorMessage" [title]="'Sign-in unsuccessful'" />

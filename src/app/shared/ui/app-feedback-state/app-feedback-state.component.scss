@@ -8,5 +8,5 @@
 }
 
 .feedback--error { color: var(--peniel-danger); }
-h2 { color: var(--peniel-ink); font-size: 1rem; margin: 0; }
-p { color: var(--peniel-muted); line-height: 1.45; margin: 0; }
+h2 { color: var(--peniel-ink); font-size: var(--peniel-type-body); margin: 0; }
+p { color: var(--peniel-muted); font-size: var(--peniel-type-supporting); line-height: 1.45; margin: 0; }

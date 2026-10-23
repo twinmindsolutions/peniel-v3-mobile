@@ -28,9 +28,9 @@
 .brand-lockup { align-items: center; display: flex; font-size: 1.25rem; font-weight: 800; gap: 10px; }
 .brand-lockup img { height: 38px; width: 38px; }
 .welcome-copy { margin-block: auto 32px; max-width: 440px; padding-top: 28vh; }
-.eyebrow { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; opacity: 0.82; text-transform: uppercase; }
-h1 { font-size: clamp(2.25rem, 11vw, 4rem); line-height: 1.04; margin: 14px 0; }
-.welcome-copy > p:last-child { font-size: 1.05rem; line-height: 1.5; margin: 0; opacity: 0.9; }
+.eyebrow { font-size: var(--peniel-type-caption); font-weight: 800; letter-spacing: 0.1em; opacity: 0.82; text-transform: uppercase; }
+h1 { font-size: clamp(2.25rem, 11vw, 4rem); line-height: var(--peniel-leading-tight); margin: 14px 0; }
+.welcome-copy > p:last-child { font-size: var(--peniel-type-body); line-height: var(--peniel-leading-body); margin: 0; opacity: 0.9; }
 
 @media (max-height: 700px) {
   .welcome-copy { padding-top: 12vh; }

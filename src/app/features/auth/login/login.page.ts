@@ -6,6 +6,7 @@ import { IonContent, IonIcon, IonInput } from '@ionic/angular';
 import { addIcons } from 'ionicons';
 import { eyeOffOutline, eyeOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import { AuthService } from '../../../core/auth/auth.service';
+import { NotificationService } from '../../../core/notifications/notification.service';
 import { AppButtonComponent } from '../../../shared/ui/app-button/app-button.component';
 import { AppFeedbackStateComponent } from '../../../shared/ui/app-feedback-state/app-feedback-state.component';
 import { AppFormFieldComponent } from '../../../shared/ui/app-form-field/app-form-field.component';
@@ -30,6 +31,7 @@ import { AppPageShellComponent } from '../../../shared/ui/app-page-shell/app-pag
 export class LoginPage {
   private readonly formBuilder = inject(FormBuilder);
   private readonly auth = inject(AuthService);
+  private readonly notifications = inject(NotificationService);
   private readonly router = inject(Router);
 
   readonly form = this.formBuilder.nonNullable.group({
@@ -59,7 +61,12 @@ export class LoginPage {
       await this.auth.login(email.trim(), password);
       await this.router.navigateByUrl('/app/home');
     } catch (error: unknown) {
-      this.errorMessage = this.messageFor(error);
+      const message = this.messageFor(error);
+      if (error instanceof HttpErrorResponse && error.status === 401) {
+        this.errorMessage = message;
+      } else {
+        void this.notifications.error(message, { title: 'Sign-in unavailable' }).catch(() => undefined);
+      }
     } finally {
       this.submitting = false;
     }

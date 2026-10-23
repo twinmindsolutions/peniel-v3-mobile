@@ -11,4 +11,5 @@ export class AppFormFieldComponent {
   @Input() error = '';
   @Input() hint = '';
   @Input() required = false;
+  @Input() hasTrailingControl = false;
 }

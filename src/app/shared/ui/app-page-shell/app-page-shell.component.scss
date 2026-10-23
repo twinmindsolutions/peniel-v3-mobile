@@ -11,7 +11,7 @@
 
 .eyebrow {
   color: var(--peniel-primary);
-  font-size: 0.75rem;
+  font-size: var(--peniel-type-caption);
   font-weight: 800;
   letter-spacing: 0.12em;
   margin: 0 0 var(--peniel-space-2);
@@ -20,13 +20,14 @@
 
 h1 {
   color: var(--peniel-ink);
-  font-size: clamp(1.9rem, 8vw, 2.5rem);
-  line-height: 1.1;
+  font-size: var(--peniel-type-page-heading);
+  line-height: var(--peniel-leading-tight);
   margin: 0 0 var(--peniel-space-2);
 }
 
 .description {
   color: var(--peniel-muted);
-  line-height: 1.55;
+  font-size: var(--peniel-type-body);
+  line-height: var(--peniel-leading-body);
   margin: 0;
 }

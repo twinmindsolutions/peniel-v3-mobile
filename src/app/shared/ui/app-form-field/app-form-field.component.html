@@ -3,7 +3,14 @@
     <span>{{ label }}</span>
     @if (required) { <span aria-hidden="true">*</span> }
   </label>
-  <div class="control"><ng-content /></div>
+  <div class="control" [class.control--trailing]="hasTrailingControl">
+    @if (hasTrailingControl) {
+      <div class="field-input"><ng-content select="[field-input]" /></div>
+      <div class="field-suffix"><ng-content select="[field-suffix]" /></div>
+    } @else {
+      <ng-content />
+    }
+  </div>
   @if (error) { <p class="error" role="alert">{{ error }}</p> }
   @if (hint && !error) { <p class="hint">{{ hint }}</p> }
 </div>
