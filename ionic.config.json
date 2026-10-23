@@ -1,0 +1,7 @@
+{
+  "name": "peniel-v3-mobile",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular-standalone"
+}
