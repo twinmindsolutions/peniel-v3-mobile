@@ -1,0 +1,49 @@
+<ion-content>
+  <main class="login-page">
+    <section class="login-card" aria-labelledby="login-title">
+      <p class="eyebrow">Staff access</p>
+      <h1 id="login-title">Sign in to Peniel</h1>
+      <p class="intro">Use your Peniel staff account to access your authorized workspace.</p>
+
+      <form class="login-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <ion-item lines="full">
+          <ion-label position="stacked">Email address</ion-label>
+          <ion-input
+            formControlName="email"
+            type="email"
+            autocomplete="username"
+            placeholder="you@example.com"
+          />
+        </ion-item>
+        <ion-item lines="full">
+          <ion-label position="stacked">Password</ion-label>
+          <ion-input
+            formControlName="password"
+            [type]="showPassword ? 'text' : 'password'"
+            autocomplete="current-password"
+          >
+            <ion-button
+              slot="end"
+              fill="clear"
+              type="button"
+              [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+              (click)="togglePasswordVisibility()"
+            >
+              <ion-icon [name]="showPassword ? 'eye-off-outline' : 'eye-outline'" aria-hidden="true" />
+            </ion-button>
+          </ion-input>
+        </ion-item>
+        @if (errorMessage) {
+          <p class="error-message" role="alert">{{ errorMessage }}</p>
+        }
+        <ion-button expand="block" type="submit" [disabled]="submitting">
+          @if (submitting) {
+            <ion-spinner name="crescent" aria-hidden="true" />
+          } @else {
+            Sign in
+          }
+        </ion-button>
+      </form>
+    </section>
+  </main>
+</ion-content>

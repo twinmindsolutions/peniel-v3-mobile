@@ -1,0 +1,8 @@
+<section class="state" role="alert">
+  <h2>{{ title }}</h2>
+  <p>{{ message }}</p>
+  <ion-button fill="outline" (click)="retry.emit()">
+    <ion-icon slot="start" name="refresh-outline" aria-hidden="true" />
+    {{ retryLabel }}
+  </ion-button>
+</section>

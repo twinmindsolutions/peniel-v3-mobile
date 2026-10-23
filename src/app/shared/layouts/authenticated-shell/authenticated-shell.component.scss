@@ -1,0 +1,12 @@
+.application-shell { background: var(--ion-background-color); min-height: 100%; }
+.app-header {
+  align-items: center;
+  background: var(--peniel-ink);
+  color: white;
+  display: flex;
+  gap: var(--peniel-space-2);
+  min-height: 56px;
+  padding: 0 var(--peniel-space-4);
+}
+.brand-mark { font-weight: 800; }
+.brand-name { font-weight: 700; letter-spacing: 0.02em; }

@@ -1,20 +1,17 @@
-<ion-header [translucent]="true">
+<ion-header>
   <ion-toolbar>
-    <ion-title>
-      Blank
-    </ion-title>
+    <ion-title>Peniel</ion-title>
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true">
-  <ion-header collapse="condense">
-    <ion-toolbar>
-      <ion-title size="large">Blank</ion-title>
-    </ion-toolbar>
-  </ion-header>
-
-  <div id="container">
-    <strong>Ready to create an app?</strong>
-    <p>Start with Ionic <a target="_blank" rel="noopener noreferrer" href="https://ionicframework.com/docs/components">UI Components</a></p>
-  </div>
+<ion-content>
+  <main class="page-content">
+    <p class="eyebrow">Peniel Mobile</p>
+    <h1>Welcome to Peniel</h1>
+    <p class="intro">Your secure church administration workspace will appear here.</p>
+    <app-empty-state
+      title="Your workspace is coming soon"
+      message="Sign-in and organization selection will be connected in the next phase."
+    />
+  </main>
 </ion-content>

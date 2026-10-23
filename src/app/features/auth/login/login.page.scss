@@ -1,0 +1,23 @@
+.login-page {
+  display: grid;
+  min-height: 100%;
+  padding: var(--peniel-space-4);
+  place-items: center;
+}
+
+.login-card {
+  background: var(--peniel-surface);
+  border: 1px solid rgba(19, 35, 63, 0.1);
+  border-radius: 20px;
+  box-shadow: 0 16px 40px rgba(19, 35, 63, 0.08);
+  max-width: 440px;
+  padding: clamp(24px, 7vw, 40px);
+  width: 100%;
+}
+
+.eyebrow { color: var(--ion-color-primary); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+h1 { color: var(--peniel-ink); font-size: clamp(1.8rem, 7vw, 2.5rem); margin: 0 0 var(--peniel-space-2); }
+.intro { color: var(--peniel-muted); line-height: 1.5; }
+.login-form { display: grid; gap: var(--peniel-space-3); margin-top: var(--peniel-space-6); }
+.error-message { color: var(--ion-color-danger, #b42318); font-size: 0.9rem; margin: 0; }
+ion-spinner { margin-inline: auto; }

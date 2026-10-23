@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'io.ionic.starter',
-  appName: 'peniel-v3-mobile',
+  appId: 'com.penielapp.mobile',
+  appName: 'Peniel',
   webDir: 'www'
 };
 

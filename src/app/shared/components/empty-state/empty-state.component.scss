@@ -1,0 +1,12 @@
+.state {
+  background: var(--peniel-surface);
+  border: 1px solid rgba(19, 35, 63, 0.1);
+  border-radius: 16px;
+  margin-top: var(--peniel-space-6);
+  padding: var(--peniel-space-6) var(--peniel-space-4);
+  text-align: center;
+}
+
+.icon { color: var(--ion-color-primary); font-size: 2rem; font-weight: 700; }
+h2 { color: var(--peniel-ink); font-size: 1.15rem; }
+p { color: var(--peniel-muted); line-height: 1.5; }
