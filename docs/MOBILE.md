@@ -154,8 +154,21 @@ shows the workspace is no longer available. A concealed 404 is treated as an una
 it may trigger one bounded authorization refresh but never reveals whether a protected resource
 exists. Network/server failures remain retryable errors and do not silently grant access.
 
-The home page currently exposes only a safe attendance-access status. No attendance recording,
-session, or offline synchronization screens are linked until those features are implemented.
+The authenticated shell now provides a compact, safe-area-aware bottom navigation for Home and
+Attendance. The Home tab is always available inside the protected shell; the Attendance tab is
+rendered only when the resolved `AttendancePermissionService.canViewAttendance` signal allows it.
+Workspace selection intentionally has no bottom navigation so the resolution flow remains focused.
+The shell does not expose unimplemented modules, and the backend remains authoritative for every
+attendance operation.
+
+## Authenticated app shell (M2.UI.1)
+
+After workspace resolution, authenticated feature routes share the Peniel shell header and a
+persistent bottom navigation. Home displays the validated organization and branch, offers the
+existing workspace-change route, and presents Attendance as the available quick-access module.
+The shell uses the existing Peniel color, typography, card, and safe-area tokens; it does not add
+fake metrics or cache workspace data. Logout, revocation, workspace switching, and authorization
+refresh continue to be owned by the existing authentication and workspace services.
 
 ## Attendance sessions (M2.2)
 

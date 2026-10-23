@@ -1,4 +1,4 @@
-.application-shell { background: var(--ion-background-color); min-height: 100%; }
+.application-shell { background: var(--ion-background-color); min-height: 100%; padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
 .app-header {
   align-items: center;
   background: var(--peniel-ink);
@@ -10,3 +10,39 @@
 }
 .brand-mark { font-weight: 800; }
 .brand-name { font-weight: 700; letter-spacing: 0.02em; }
+
+.bottom-nav {
+  align-items: stretch;
+  background: color-mix(in srgb, var(--peniel-surface) 94%, transparent);
+  border-top: 1px solid var(--peniel-border);
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  left: 0;
+  padding: var(--peniel-space-2) var(--peniel-space-3) calc(var(--peniel-space-2) + env(safe-area-inset-bottom));
+  position: fixed;
+  right: 0;
+  z-index: 20;
+}
+
+.bottom-nav__item {
+  align-items: center;
+  border-radius: var(--peniel-radius-md);
+  color: var(--peniel-muted);
+  display: flex;
+  flex: 1 1 160px;
+  flex-direction: column;
+  font-size: var(--peniel-type-caption);
+  font-weight: 700;
+  gap: 3px;
+  justify-content: center;
+  max-width: 180px;
+  min-height: 48px;
+  padding: 4px 8px;
+  text-decoration: none;
+}
+
+.bottom-nav__item ion-icon { font-size: 1.3rem; }
+.bottom-nav__item--active { color: var(--peniel-primary); position: relative; }
+.bottom-nav__item--active::before { background: var(--peniel-primary); border-radius: 50%; content: ''; height: 4px; position: absolute; top: 1px; width: 4px; }
+.bottom-nav__item--active ion-icon { transform: translateY(-1px); }

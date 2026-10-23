@@ -1,30 +1,72 @@
-<ion-header>
-  <ion-toolbar>
-    <ion-title>Peniel</ion-title>
-  </ion-toolbar>
-</ion-header>
-
 <ion-content>
   <main class="page-content">
-    <p class="eyebrow">Peniel Mobile</p>
-    <h1>Welcome to Peniel</h1>
-    <p class="intro">Your secure church administration workspace will appear here.</p>
-    <app-empty-state
-      title="Your workspace is ready"
-      message="Choose an available tool below to continue working in your authorized workspace."
-    />
-    <section class="attendance-access" aria-labelledby="attendance-access-title">
-      <p class="eyebrow">Attendance</p>
-      @if (!attendance.resolved()) {
-        <h2 id="attendance-access-title">Attendance access is being verified</h2>
-        <p>Your current workspace permissions must be confirmed before attendance tools are shown.</p>
-      } @else if (attendance.canViewAttendance()) {
-        <h2 id="attendance-access-title">Attendance access is available</h2>
-        <p>Attendance tools for this branch will appear here when the feature is enabled.</p>
-        <ion-button routerLink="/app/attendance" fill="solid">View attendance sessions</ion-button>
+    <section class="welcome-panel" aria-labelledby="home-title">
+      <div class="brand-lockup">
+        <span class="brand-icon"><img src="assets/peniel-church.svg" alt="" /></span>
+        <div>
+          <strong>Peniel</strong>
+          <span>Church Management</span>
+        </div>
+      </div>
+      <p class="eyebrow">Welcome back</p>
+      <h1 id="home-title">{{ greeting() }}</h1>
+      <p>Let’s keep the work of the church going.</p>
+    </section>
+
+    <section class="home-content">
+      @if (workspace.error() && !workspace.authorizationVerified()) {
+        <app-feedback-state
+          title="Workspace access needs attention"
+          message="We could not verify your current workspace. Retry from workspace selection."
+        />
+      } @else if (!workspace.authorizationVerified() || !attendance.resolved()) {
+        <app-feedback-state
+          kind="loading"
+          title="Verifying workspace"
+          message="Checking your authorized organization, branch, and attendance access."
+        />
+      } @else if (!workspace.selectedOrganization() || !workspace.selectedBranch()) {
+        <app-feedback-state
+          title="No workspace selected"
+          message="Choose an authorized organization and branch to continue."
+        />
+        <ion-button class="workspace-action" fill="outline" routerLink="/app/workspace">Choose workspace</ion-button>
       } @else {
-        <h2 id="attendance-access-title">Attendance access is unavailable</h2>
-        <p>Your current workspace does not include attendance access.</p>
+        <a class="workspace-summary" aria-labelledby="workspace-title" aria-label="Change workspace" routerLink="/app/workspace">
+          <span class="workspace-icon"><img src="assets/peniel-church.svg" alt="" /></span>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Current workspace</p>
+              <h2 id="workspace-title">{{ workspace.selectedOrganization()!.name }}</h2>
+            </div>
+            <ion-icon class="workspace-chevron" name="chevron-forward-outline" aria-hidden="true" />
+          </div>
+          <div class="branch-line">
+            <ion-icon name="git-branch-outline" aria-hidden="true" />
+            <span>{{ workspace.selectedBranch()!.name }}</span>
+          </div>
+        </a>
+
+        <section class="quick-access" aria-labelledby="quick-access-title">
+          <div class="section-heading">
+            <div>
+              <h2 id="quick-access-title">Church tools</h2>
+            </div>
+          </div>
+
+          @if (attendance.canViewAttendance()) {
+            <a class="module-card" routerLink="/app/attendance" aria-label="Open Attendance: Sessions and member check-in">
+              <div class="module-icon"><ion-icon name="calendar-outline" aria-hidden="true" /></div>
+              <div class="module-copy">
+                <h3>Attendance</h3>
+                <p>Sessions and member check-in</p>
+              </div>
+              <ion-icon class="module-chevron" name="chevron-forward-outline" aria-hidden="true" />
+            </a>
+          } @else {
+            <p class="no-access" role="status">No attendance tools are available in this workspace.</p>
+          }
+        </section>
       }
     </section>
   </main>

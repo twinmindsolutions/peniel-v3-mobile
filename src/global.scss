@@ -83,3 +83,7 @@ ion-alert.peniel-alert {
   --backdrop-opacity: 0.42;
   font-family: var(--peniel-font-family);
 }
+
+.application-shell app-page-shell .page-shell {
+  padding-bottom: calc(var(--peniel-space-8) + 72px + env(safe-area-inset-bottom));
+}

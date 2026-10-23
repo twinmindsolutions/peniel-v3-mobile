@@ -1,7 +1,26 @@
 <div class="application-shell">
-  <header class="app-header">
-    <span class="brand-mark" aria-hidden="true">P</span>
-    <span class="brand-name">Peniel</span>
-  </header>
+  @if (showHeader()) {
+    <header class="app-header">
+      <span class="brand-mark" aria-hidden="true">P</span>
+      <span class="brand-name">Peniel</span>
+    </header>
+  }
   <ion-router-outlet />
+
+  @if (showNavigation()) {
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <a class="bottom-nav__item" routerLink="/app/home" routerLinkActive="bottom-nav__item--active"
+        [routerLinkActiveOptions]="{ exact: true }">
+        <ion-icon name="home-outline" aria-hidden="true" />
+        <span>Home</span>
+      </a>
+
+      @if (attendance.canViewAttendance()) {
+        <a class="bottom-nav__item" routerLink="/app/attendance" routerLinkActive="bottom-nav__item--active">
+          <ion-icon name="calendar-outline" aria-hidden="true" />
+          <span>Attendance</span>
+        </a>
+      }
+    </nav>
+  }
 </div>
