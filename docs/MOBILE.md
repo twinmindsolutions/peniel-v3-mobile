@@ -205,3 +205,26 @@ The backend currently has no separate recording capability flag. The UI derives 
 recording affordance from the existing effective session-management branch IDs or current ad-hoc
 scope; the manual endpoint and SECURITY DEFINER function remain authoritative for Organization
 Admins, Branch Admins, and scoped Attendance Officers. View-only users do not receive the action.
+
+## Native QR member check-in (M2.4B)
+
+The mobile app uses `@capacitor-mlkit/barcode-scanning` 8.x for native QR scanning. It is
+Capacitor 8-compatible and is intentionally not invoked in browser development. Browser builds
+show an unsupported-platform message and keep manual member search available. Native setup remains
+pending platform creation: Android requires the camera permission and Google Barcode Scanner module
+availability where applicable; iOS requires `NSCameraUsageDescription` and the plugin's minimum
+deployment target. These settings must be verified when `android/` and `ios/` are added.
+
+On an eligible session, Scan QR first opens the native camera and accepts only a UUID payload. The
+client sends it to `POST /api/v1/organizations/{organization_id}/attendance/sessions/{session_id}/check-in/qr/preview/`.
+The response contains `member_id`, `display_name`, `membership_number`, `session_id`, and
+`attendance_status`. A new member preview always requires explicit confirmation before the client
+calls `POST .../check-in/qr/` with the same QR identifier. `already_checked_in` previews are shown
+as duplicates and are never recorded again.
+
+QR values and preview data are held only in transient memory. The backend remains authoritative
+for tenant, branch, group, QR revocation, session timing, and recording authorization, and
+revalidates all conditions during final recording. Camera permission denial, cancellation, invalid
+payloads, unavailable scanners, workspace/session changes, and page destruction stop or clear the
+scan flow without retrying attendance writes. Native-device verification is still required before
+shipping the scanner workflow.

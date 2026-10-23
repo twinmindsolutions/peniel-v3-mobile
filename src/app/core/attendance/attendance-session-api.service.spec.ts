@@ -48,4 +48,21 @@ describe('AttendanceSessionApiService', () => {
     expect(checkIn.request.body).toEqual({ member_id: 'member' });
     checkIn.flush({ outcome: 'already_checked_in' });
   });
+
+  it('uses the QR preview and recording contracts without transforming responses', () => {
+    service.previewQrCheckIn('org', 'session', 'qr-id').subscribe((response) => expect(response.attendance_status).toBe('not_checked_in'));
+    const preview = http.expectOne('/api/v1/organizations/org/attendance/sessions/session/check-in/qr/preview/');
+    expect(preview.request.method).toBe('POST');
+    expect(preview.request.body).toEqual({ qr_identifier: 'qr-id' });
+    preview.flush({
+      member_id: 'member', display_name: 'Ada Lovelace', membership_number: 'ABC',
+      session_id: 'session', attendance_status: 'not_checked_in',
+    });
+
+    service.recordQrCheckIn('org', 'session', 'qr-id').subscribe((response) => expect(response.outcome).toBe('already_checked_in'));
+    const recording = http.expectOne('/api/v1/organizations/org/attendance/sessions/session/check-in/qr/');
+    expect(recording.request.method).toBe('POST');
+    expect(recording.request.body).toEqual({ qr_identifier: 'qr-id' });
+    recording.flush({ outcome: 'already_checked_in' });
+  });
 });

@@ -76,3 +76,13 @@ export interface AttendanceCheckInResponse {
   readonly recorded_by_id: string;
   readonly recorded_by_display_name: string;
 }
+
+export type AttendanceQrPreviewStatus = 'not_checked_in' | 'already_checked_in';
+
+export interface AttendanceQrPreviewResponse {
+  readonly member_id: string;
+  readonly display_name: string;
+  readonly membership_number: string;
+  readonly session_id: string;
+  readonly attendance_status: AttendanceQrPreviewStatus;
+}

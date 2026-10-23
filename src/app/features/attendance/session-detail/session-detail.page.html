@@ -16,9 +16,17 @@
       </section>
       @if (attendance.canRecordAttendance() && session()!.status === 'scheduled' && !recordingUnavailableMessage()) {
         <section class="check-in-card" aria-labelledby="check-in-title">
-          <p class="eyebrow">Manual check-in</p>
+          <p class="eyebrow">Member check-in</p>
           <h2 id="check-in-title">Check in a member</h2>
-          <p class="muted">Search by name or membership number. Selecting a member opens a confirmation before recording.</p>
+          <p class="muted">Scan a Peniel QR code or search by name or membership number. Every check-in requires confirmation.</p>
+          <app-button variant="secondary" expand="block" [loading]="qrScanInFlight()" [disabled]="qrScanInFlight() || checkInInFlight()" (click)="scanQr()">
+            <ion-icon slot="start" name="qr-code-outline" aria-hidden="true" />
+            Scan QR code
+          </app-button>
+          @if (scannerMessage(); as message) {
+            <p class="scanner-message" role="status">{{ message }}</p>
+          }
+          <p class="manual-label">Or use manual member search</p>
           <ion-searchbar
             [value]="searchTerm()"
             placeholder="Search members"
@@ -35,7 +43,7 @@
           } @else {
             <ion-list class="member-list" lines="none">
               @for (member of members(); track member.id) {
-                <ion-item button detail="true" [disabled]="checkInInFlight()" (click)="selectMember(member)">
+              <ion-item button detail="true" [disabled]="checkInInFlight() || qrScanInFlight()" (click)="selectMember(member)">
                   <ion-label><h3>{{ member.first_name }} {{ member.last_name }}</h3><p>{{ member.membership_number }}</p></ion-label>
                 </ion-item>
               }
@@ -46,6 +54,13 @@
               <div><p class="eyebrow">Ready to confirm</p><h3 id="selected-member-title">{{ member.first_name }} {{ member.last_name }}</h3><p class="muted">{{ member.membership_number }}</p></div>
               <app-button variant="navy" expand="block" [loading]="checkInInFlight()" [disabled]="checkInInFlight()" (click)="confirmSelectedMember()">Confirm check-in</app-button>
               <app-button variant="ghost" [disabled]="checkInInFlight()" (click)="selectedMember.set(null)">Cancel</app-button>
+            </div>
+          }
+          @if (qrPreview(); as preview) {
+            <div class="qr-preview" role="status">
+              <p class="eyebrow">QR member found</p>
+              <strong>{{ preview.display_name }}</strong>
+              <span>{{ preview.membership_number }}</span>
             </div>
           }
         </section>

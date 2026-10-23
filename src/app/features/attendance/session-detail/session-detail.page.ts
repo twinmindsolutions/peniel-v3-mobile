@@ -1,11 +1,14 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, OnDestroy, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { IonContent, IonHeader, IonItem, IonLabel, IonList, IonSearchbar, IonTitle, IonToolbar } from '@ionic/angular';
+import { IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonList, IonSearchbar, IonTitle, IonToolbar } from '@ionic/angular';
+import { addIcons } from 'ionicons';
+import { qrCodeOutline } from 'ionicons/icons';
 import { firstValueFrom } from 'rxjs';
 import { AttendancePermissionService } from '../../../core/attendance/attendance-permission.service';
 import { AttendanceSessionApiService } from '../../../core/attendance/attendance-session-api.service';
-import { AttendanceCheckInResponse, AttendanceMemberLookup, AttendanceSession, AttendanceSessionSummary } from '../../../core/attendance/attendance.models';
+import { AttendanceCheckInResponse, AttendanceMemberLookup, AttendanceQrPreviewResponse, AttendanceSession, AttendanceSessionSummary } from '../../../core/attendance/attendance.models';
+import { QrScannerService } from '../../../core/attendance/qr-scanner.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { AppFeedbackStateComponent } from '../../../shared/ui/app-feedback-state/app-feedback-state.component';
@@ -16,19 +19,23 @@ import { AppButtonComponent } from '../../../shared/ui/app-button/app-button.com
   selector: 'app-attendance-session-detail',
   templateUrl: './session-detail.page.html',
   styleUrls: ['./session-detail.page.scss'],
-  imports: [IonContent, IonHeader, IonItem, IonLabel, IonList, IonSearchbar, IonTitle, IonToolbar, AppFeedbackStateComponent, AppPageShellComponent, AppButtonComponent],
+  imports: [IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonList, IonSearchbar, IonTitle, IonToolbar, AppFeedbackStateComponent, AppPageShellComponent, AppButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SessionDetailPage {
+export class SessionDetailPage implements OnDestroy {
   private readonly api = inject(AttendanceSessionApiService);
   private readonly route = inject(ActivatedRoute);
   private readonly notifications = inject(NotificationService);
+  private readonly qrScanner = inject(QrScannerService);
   readonly workspace = inject(WorkspaceStateService);
   readonly attendance = inject(AttendancePermissionService);
   readonly session = signal<AttendanceSession | null>(null);
   readonly summary = signal<AttendanceSessionSummary | null>(null);
   readonly members = signal<readonly AttendanceMemberLookup[]>([]);
   readonly selectedMember = signal<AttendanceMemberLookup | null>(null);
+  readonly qrPreview = signal<AttendanceQrPreviewResponse | null>(null);
+  readonly qrScanInFlight = signal(false);
+  readonly scannerMessage = signal<string | null>(null);
   readonly loading = signal(false);
   readonly memberLoading = signal(false);
   readonly memberError = signal(false);
@@ -42,6 +49,7 @@ export class SessionDetailPage {
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
+    addIcons({ qrCodeOutline });
     this.sessionId = this.route.snapshot.paramMap.get('sessionId') ?? '';
     effect(() => {
       const key = `${this.workspace.selectedOrganizationId() ?? ''}:${this.workspace.selectedBranchId() ?? ''}:${this.attendance.canViewAttendance()}:${this.sessionId}`;
@@ -49,6 +57,11 @@ export class SessionDetailPage {
       this.lastKey = key;
       void this.load();
     });
+  }
+
+  ngOnDestroy(): void {
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    void this.qrScanner.stop();
   }
 
   async load(): Promise<void> {
@@ -59,6 +72,8 @@ export class SessionDetailPage {
     this.summary.set(null);
     this.members.set([]);
     this.selectedMember.set(null);
+    this.qrPreview.set(null);
+    this.scannerMessage.set(null);
     this.error.set(false);
     this.memberError.set(false);
     if (!organizationId || !branchId || !this.sessionId || !this.attendance.canViewAttendance()) {
@@ -119,8 +134,68 @@ export class SessionDetailPage {
   }
 
   selectMember(member: AttendanceMemberLookup): void {
-    if (!this.attendance.canRecordAttendance() || this.checkInInFlight() || this.recordingUnavailableMessage()) return;
+    if (!this.attendance.canRecordAttendance() || this.checkInInFlight() || this.qrScanInFlight() || this.recordingUnavailableMessage()) return;
     this.selectedMember.set(member);
+  }
+
+  async scanQr(): Promise<void> {
+    const organizationId = this.workspace.selectedOrganizationId();
+    const branchId = this.workspace.selectedBranchId();
+    if (!organizationId || !branchId || !this.sessionId || !this.attendance.canRecordAttendance()) return;
+    if (this.checkInInFlight() || this.qrScanInFlight() || this.recordingUnavailableMessage()) return;
+
+    const version = this.requestVersion;
+    this.qrScanInFlight.set(true);
+    this.scannerMessage.set(null);
+    this.qrPreview.set(null);
+    try {
+      const scan = await this.qrScanner.scan();
+      if (scan.kind === 'cancelled') return;
+      if (scan.kind === 'unsupported') {
+        this.scannerMessage.set('QR scanning is available in the native app. Use member search in the browser.');
+        return;
+      }
+      if (scan.kind === 'permission_denied') {
+        this.scannerMessage.set('Camera access is required to scan a member QR code.');
+        return;
+      }
+      if (scan.kind === 'invalid_payload') {
+        await this.notifications.warning('This QR code is not a Peniel member QR code.');
+        return;
+      }
+      if (scan.kind === 'unavailable') {
+        this.scannerMessage.set('The QR scanner is unavailable on this device. Use member search instead.');
+        return;
+      }
+      if (!this.isCurrent(version, organizationId, branchId)) return;
+
+      const preview = await firstValueFrom(this.api.previewQrCheckIn(organizationId, this.sessionId, scan.qrIdentifier));
+      if (!this.isCurrent(version, organizationId, branchId)) return;
+      if (preview.attendance_status === 'already_checked_in') {
+        await this.notifications.warning(`${preview.display_name} is already checked in to this session.`);
+        return;
+      }
+      this.qrPreview.set(preview);
+      const sessionName = this.session()?.service_type_name_snapshot || this.session()?.service_type.name || 'this session';
+      const sessionDate = this.session() ? this.formatDate(this.session()!.local_occurrence_date) : 'this session';
+      const confirmed = await this.notifications.confirm({
+        title: 'Confirm QR check-in',
+        message: `${preview.display_name} (${preview.membership_number}) will be checked in to ${sessionName} on ${sessionDate}.`,
+        confirmLabel: 'Check in',
+      });
+      if (!confirmed || !this.isCurrent(version, organizationId, branchId)) return;
+
+      this.checkInInFlight.set(true);
+      const response = await firstValueFrom(this.api.recordQrCheckIn(organizationId, this.sessionId, scan.qrIdentifier));
+      if (!this.isCurrent(version, organizationId, branchId)) return;
+      await this.handleCheckInResponse(response);
+    } catch (error: unknown) {
+      await this.handleCheckInError(error);
+    } finally {
+      this.qrPreview.set(null);
+      this.qrScanInFlight.set(false);
+      this.checkInInFlight.set(false);
+    }
   }
 
   recordingUnavailableMessage(): string | null {
@@ -137,7 +212,7 @@ export class SessionDetailPage {
       await this.notifications.warning(unavailableMessage);
       return;
     }
-    if (!member || !organizationId || !branchId || !this.attendance.canRecordAttendance() || this.checkInInFlight()) return;
+    if (!member || !organizationId || !branchId || !this.attendance.canRecordAttendance() || this.checkInInFlight() || this.qrScanInFlight()) return;
     const confirmed = await this.notifications.confirm({
       title: 'Confirm check-in',
       message: `${member.first_name} ${member.last_name} will be checked in to this session.`,

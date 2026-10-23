@@ -6,6 +6,7 @@ import { getRecordingUnavailableMessage } from './session-detail.page';
 import { AttendanceSession } from '../../../core/attendance/attendance.models';
 import { AttendanceSessionApiService } from '../../../core/attendance/attendance-session-api.service';
 import { AttendancePermissionService } from '../../../core/attendance/attendance-permission.service';
+import { QrScannerService } from '../../../core/attendance/qr-scanner.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 
@@ -22,6 +23,7 @@ describe('SessionDetailPage', () => {
         { provide: WorkspaceStateService, useValue: workspace },
         { provide: AttendancePermissionService, useValue: attendance },
         { provide: AttendanceSessionApiService, useValue: api },
+        { provide: QrScannerService, useValue: { scan: vi.fn(), stop: vi.fn() } },
         { provide: NotificationService, useValue: { confirm: vi.fn(() => Promise.resolve(false)) } },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'session-1' } } } },
       ],

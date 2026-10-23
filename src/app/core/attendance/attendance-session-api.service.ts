@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '../config/api-config.service';
-import { AttendanceCheckInResponse, AttendanceMemberLookup, AttendanceSession, AttendanceSessionListResponse, AttendanceSessionSummary } from './attendance.models';
+import { AttendanceCheckInResponse, AttendanceMemberLookup, AttendanceQrPreviewResponse, AttendanceSession, AttendanceSessionListResponse, AttendanceSessionSummary } from './attendance.models';
 
 @Injectable({ providedIn: 'root' })
 export class AttendanceSessionApiService {
@@ -39,6 +39,18 @@ export class AttendanceSessionApiService {
     return this.http.post<AttendanceCheckInResponse>(this.url(
       `/organizations/${encodeURIComponent(organizationId)}/attendance/sessions/${encodeURIComponent(sessionId)}/check-in/manual/`,
     ), { member_id: memberId });
+  }
+
+  previewQrCheckIn(organizationId: string, sessionId: string, qrIdentifier: string): Observable<AttendanceQrPreviewResponse> {
+    return this.http.post<AttendanceQrPreviewResponse>(this.url(
+      `/organizations/${encodeURIComponent(organizationId)}/attendance/sessions/${encodeURIComponent(sessionId)}/check-in/qr/preview/`,
+    ), { qr_identifier: qrIdentifier });
+  }
+
+  recordQrCheckIn(organizationId: string, sessionId: string, qrIdentifier: string): Observable<AttendanceCheckInResponse> {
+    return this.http.post<AttendanceCheckInResponse>(this.url(
+      `/organizations/${encodeURIComponent(organizationId)}/attendance/sessions/${encodeURIComponent(sessionId)}/check-in/qr/`,
+    ), { qr_identifier: qrIdentifier });
   }
 
   private url(path: string): string {
