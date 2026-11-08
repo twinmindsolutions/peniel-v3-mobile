@@ -31,9 +31,8 @@ credential store.
 short automatic display, and no spinner. `src/assets/peniel-mark.svg` is the reusable Peniel mark
 for the web welcome experience and future native asset generation.
 
-Android and iOS platforms have not been added yet, so native splash asset packaging, launch timing,
-safe-area behavior, and device appearance remain to be verified after platform setup. Do not treat
-the browser build as native splash verification.
+The Android platform is checked in. Native splash packaging and device appearance still require
+physical-device verification; do not treat the browser build as native splash verification.
 
 ## Workspace discovery (M1.4B)
 
@@ -213,7 +212,7 @@ Capacitor 8-compatible and is intentionally not invoked in browser development. 
 show an unsupported-platform message and keep manual member search available. Native setup remains
 pending platform creation: Android requires the camera permission and Google Barcode Scanner module
 availability where applicable; iOS requires `NSCameraUsageDescription` and the plugin's minimum
-deployment target. These settings must be verified when `android/` and `ios/` are added.
+deployment target. Android device verification is still required before shipping the scanner workflow.
 
 On an eligible session, Scan QR first opens the native camera and accepts only a UUID payload. The
 client sends it to `POST /api/v1/organizations/{organization_id}/attendance/sessions/{session_id}/check-in/qr/preview/`.
@@ -228,3 +227,75 @@ revalidates all conditions during final recording. Camera permission denial, can
 payloads, unavailable scanners, workspace/session changes, and page destruction stop or clear the
 scan flow without retrying attendance writes. Native-device verification is still required before
 shipping the scanner workflow.
+
+## Android staging device deployment
+
+The checked-in Android application ID is `com.penielapp.mobile`. The manifest declares `INTERNET`
+and `CAMERA`, does not enable cleartext traffic, and disables Android backup/device transfer for
+the app data. Refresh credentials remain in the native secure-storage plugin; access tokens remain
+in memory.
+
+The staging build is intentionally not usable until the exact Railway staging API URL is supplied.
+Do not substitute the production URL. Before building, replace the build-time value in
+`src/environments/environment.staging.ts`:
+
+```ts
+apiBaseUrl: 'https://<confirmed-railway-staging-api-host>/api/v1'
+```
+
+The value must be the HTTPS Django API origin plus `/api/v1`, with no trailing slash. The app
+validates the URL at startup and rejects the placeholder, HTTP URLs, the known production host,
+and missing `/api/v1` paths. Keep deployment-specific values out of commits when local policy
+requires them to remain untracked.
+
+### Prerequisites
+
+Install Node.js compatible with Angular 22, npm, Android Studio, Android SDK Platform 36, Android
+SDK Build-Tools, and a JDK supported by Android Gradle Plugin 8.13. Confirm the environment from
+PowerShell:
+
+```powershell
+node --version
+npm --version
+java -version
+adb version
+```
+
+Enable Developer options and USB debugging on the physical Android device, connect it by USB, and
+verify it is authorized:
+
+```powershell
+adb devices
+```
+
+### Build, sync, install
+
+From `peniel-v3-mobile`:
+
+```powershell
+npm ci
+npm run build:staging
+npx cap sync android
+cd android
+.\gradlew.bat --version
+.\gradlew.bat assembleDebug
+adb install -r app\build\outputs\apk\debug\app-debug.apk
+```
+
+The equivalent repeatable staging sync command is `npm run cap:sync:staging`, after the staging URL
+has been configured. Open the app from the launcher after installation; no deploy or production
+resource is touched by these commands.
+
+### Smoke test
+
+On the device, verify that login reaches the staging API, the authenticated request carries a
+Bearer access token, closing/reopening the app restores the session through the rotating refresh
+endpoint, logout clears the native credential, and an invalid/expired session returns to login.
+For an authorized workspace, verify organization/branch resolution and one read-only attendance
+session flow. Only then verify camera permission, QR preview, explicit confirmation, and the final
+check-in. Record the device Android version, API URL/commit identifier, and any HTTP status seen.
+
+The Django backend exposes the required mobile endpoints (`mobile/login`, `mobile/refresh`,
+`mobile/logout`, and `auth/me`) and uses Bearer authentication. Live staging CORS/origin and
+endpoint availability are not verified from this workspace. The staging Django deployment must
+be checked independently; do not weaken CORS or CSRF policy to make the app work.

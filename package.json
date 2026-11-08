@@ -7,6 +7,8 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:staging": "ng build --configuration staging",
+    "cap:sync:staging": "npm run build:staging && npx cap sync android",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint"
