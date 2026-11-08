@@ -11,7 +11,10 @@ export type QrScanOutcome =
   | { readonly kind: 'invalid_payload' }
   | { readonly kind: 'unavailable' };
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Peniel QR identifiers are UUID-shaped opaque values. The version nibble is
+// intentionally not restricted: existing records include non-RFC UUID version
+// values, while the variant nibble and canonical UUID syntax remain strict.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Injectable({ providedIn: 'root' })
 export class QrScannerService {

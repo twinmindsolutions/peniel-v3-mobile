@@ -10,6 +10,7 @@ import { AttendanceSessionApiService } from '../../../core/attendance/attendance
 import { AttendanceCheckInResponse, AttendanceMemberLookup, AttendanceQrPreviewResponse, AttendanceSession, AttendanceSessionSummary } from '../../../core/attendance/attendance.models';
 import { QrScannerService } from '../../../core/attendance/qr-scanner.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
+import { WorkspaceAuthorizationService } from '../../../core/workspace/workspace-authorization.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
 import { AppFeedbackStateComponent } from '../../../shared/ui/app-feedback-state/app-feedback-state.component';
 import { AppPageShellComponent } from '../../../shared/ui/app-page-shell/app-page-shell.component';
@@ -27,6 +28,7 @@ export class SessionDetailPage implements OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly notifications = inject(NotificationService);
   private readonly qrScanner = inject(QrScannerService);
+  private readonly workspaceAuthorization = inject(WorkspaceAuthorizationService);
   readonly workspace = inject(WorkspaceStateService);
   readonly attendance = inject(AttendancePermissionService);
   readonly session = signal<AttendanceSession | null>(null);
@@ -46,6 +48,7 @@ export class SessionDetailPage implements OnDestroy {
   private requestVersion = 0;
   private memberRequestVersion = 0;
   private lastKey = '';
+  private deferredContextLoad = false;
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
@@ -53,6 +56,18 @@ export class SessionDetailPage implements OnDestroy {
     this.sessionId = this.route.snapshot.paramMap.get('sessionId') ?? '';
     effect(() => {
       const key = `${this.workspace.selectedOrganizationId() ?? ''}:${this.workspace.selectedBranchId() ?? ''}:${this.attendance.canViewAttendance()}:${this.sessionId}`;
+      const scanBusy = this.qrScanInFlight() || this.checkInInFlight();
+      if (scanBusy) {
+        if (key !== this.lastKey) this.deferredContextLoad = true;
+        this.lastKey = key;
+        return;
+      }
+      if (this.deferredContextLoad) {
+        this.deferredContextLoad = false;
+        this.lastKey = key;
+        void this.load();
+        return;
+      }
       if (key === this.lastKey) return;
       this.lastKey = key;
       void this.load();
@@ -167,10 +182,14 @@ export class SessionDetailPage implements OnDestroy {
         this.scannerMessage.set('The QR scanner is unavailable on this device. Use member search instead.');
         return;
       }
-      if (!this.isCurrent(version, organizationId, branchId)) return;
+      const authorized = await this.refreshScanAuthorization(version, organizationId, branchId);
+      if (!authorized) return;
 
       const preview = await firstValueFrom(this.api.previewQrCheckIn(organizationId, this.sessionId, scan.qrIdentifier));
-      if (!this.isCurrent(version, organizationId, branchId)) return;
+      if (!this.isCurrentScan(version, organizationId, branchId)) {
+        await this.notifyAuthorizationChanged();
+        return;
+      }
       if (preview.attendance_status === 'already_checked_in') {
         await this.notifications.warning(`${preview.display_name} is already checked in to this session.`);
         return;
@@ -183,11 +202,18 @@ export class SessionDetailPage implements OnDestroy {
         message: `${preview.display_name} (${preview.membership_number}) will be checked in to ${sessionName} on ${sessionDate}.`,
         confirmLabel: 'Check in',
       });
-      if (!confirmed || !this.isCurrent(version, organizationId, branchId)) return;
+      if (!confirmed) return;
+      if (!this.isCurrentScan(version, organizationId, branchId)) {
+        await this.notifyAuthorizationChanged();
+        return;
+      }
 
       this.checkInInFlight.set(true);
       const response = await firstValueFrom(this.api.recordQrCheckIn(organizationId, this.sessionId, scan.qrIdentifier));
-      if (!this.isCurrent(version, organizationId, branchId)) return;
+      if (!this.isCurrentScan(version, organizationId, branchId)) {
+        await this.notifications.error('The check-in response was received, but attendance authorization changed. Refresh the session before trying again.');
+        return;
+      }
       await this.handleCheckInResponse(response);
     } catch (error: unknown) {
       await this.handleCheckInError(error);
@@ -284,6 +310,21 @@ export class SessionDetailPage implements OnDestroy {
     return version === this.requestVersion
       && this.workspace.selectedOrganizationId() === organizationId
       && this.workspace.selectedBranchId() === branchId;
+  }
+
+  private isCurrentScan(version: number, organizationId: string, branchId: string): boolean {
+    return this.isCurrent(version, organizationId, branchId) && this.attendance.canRecordAttendance();
+  }
+
+  private async refreshScanAuthorization(version: number, organizationId: string, branchId: string): Promise<boolean> {
+    const refreshed = await this.workspaceAuthorization.refresh('app-resume');
+    if (refreshed && this.isCurrentScan(version, organizationId, branchId)) return true;
+    await this.notifyAuthorizationChanged();
+    return false;
+  }
+
+  private notifyAuthorizationChanged(): Promise<void> {
+    return this.notifications.error('Your attendance authorization changed. Reopen the session before scanning again.');
   }
 
   formatDate(value: string): string { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)); }
