@@ -6,5 +6,5 @@
 export const environment = {
   production: false,
   staging: true,
-  apiBaseUrl: '__RAILWAY_STAGING_API_BASE_URL__/api/v1',
+  apiBaseUrl: 'https://peniel-v3-api-staging.up.railway.app/api/v1',
 };
