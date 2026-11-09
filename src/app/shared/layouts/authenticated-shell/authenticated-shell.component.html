@@ -15,6 +15,11 @@
         <span>Home</span>
       </a>
 
+      <a class="bottom-nav__item" routerLink="/app/security" routerLinkActive="bottom-nav__item--active">
+        <ion-icon name="lock-closed-outline" aria-hidden="true" />
+        <span>Account</span>
+      </a>
+
       @if (attendance.canViewAttendance()) {
         <a class="bottom-nav__item" routerLink="/app/attendance" routerLinkActive="bottom-nav__item--active">
           <ion-icon name="calendar-outline" aria-hidden="true" />

@@ -45,6 +45,11 @@ export const routes: Routes = [
         canActivate: [attendanceGuard],
         loadComponent: () => import('./features/attendance/session-detail/session-detail.page').then((m) => m.SessionDetailPage),
       },
+      {
+        path: 'security',
+        canActivate: [workspaceGuard],
+        loadComponent: () => import('./features/account/security.page').then((m) => m.SecurityPage),
+      },
       { path: '', redirectTo: 'workspace', pathMatch: 'full' },
     ],
   },

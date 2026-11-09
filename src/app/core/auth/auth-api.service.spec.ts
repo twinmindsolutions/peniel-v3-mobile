@@ -35,4 +35,20 @@ describe('AuthApiService', () => {
       user: { id: 'user-id', email: null, login_identifier: 'john.mensah@miracle-temple', can_create_organization: false },
     });
   });
+
+  it('posts the password change contract without persisting the password', () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ApiConfigService, useValue: { configuration: { baseUrl: 'http://api.test' } } },
+      ],
+    });
+    const service = TestBed.inject(AuthApiService);
+    const http = TestBed.inject(HttpTestingController);
+    service.changePassword('old', 'new secure password', 'new secure password').subscribe();
+    const request = http.expectOne('http://api.test/api/v1/auth/password/change/');
+    expect(request.request.body).toEqual({ current_password: 'old', new_password: 'new secure password', password_confirmation: 'new secure password' });
+    request.flush({});
+  });
 });

@@ -89,6 +89,12 @@ export class AuthService {
     }
   }
 
+  async changePassword(currentPassword: string, newPassword: string, passwordConfirmation: string): Promise<void> {
+    const response = await firstValueFrom(this.api.changePassword(currentPassword, newPassword, passwordConfirmation));
+    await this.persistRefreshCredential(response);
+    this.setAuthenticated(response);
+  }
+
   private async restoreSession(): Promise<void> {
     try {
       const credential = await this.credentialStore.read();

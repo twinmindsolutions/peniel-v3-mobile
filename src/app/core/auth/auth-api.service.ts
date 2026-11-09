@@ -28,6 +28,14 @@ export class AuthApiService {
     });
   }
 
+  changePassword(currentPassword: string, newPassword: string, passwordConfirmation: string): Observable<MobileTokenResponse> {
+    return this.http.post<MobileTokenResponse>(this.url('/auth/password/change/'), {
+      current_password: currentPassword,
+      new_password: newPassword,
+      password_confirmation: passwordConfirmation,
+    });
+  }
+
   me(): Observable<MobileUser> {
     return this.http.get<MobileUser>(this.url('/auth/me/'));
   }

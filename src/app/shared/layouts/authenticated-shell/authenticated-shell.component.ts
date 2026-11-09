@@ -4,7 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/ro
 import { filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { addIcons } from 'ionicons';
-import { calendarOutline, homeOutline } from 'ionicons/icons';
+import { calendarOutline, homeOutline, lockClosedOutline } from 'ionicons/icons';
 import { AttendancePermissionService } from '../../../core/attendance/attendance-permission.service';
 
 @Component({
@@ -22,7 +22,7 @@ export class AuthenticatedShellComponent {
   readonly showHeader = signal(!this.isHomeRoute(this.router.url));
 
   constructor() {
-    addIcons({ calendarOutline, homeOutline });
+    addIcons({ calendarOutline, homeOutline, lockClosedOutline });
     this.router.events.pipe(
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
       takeUntilDestroyed(this.destroyRef),
