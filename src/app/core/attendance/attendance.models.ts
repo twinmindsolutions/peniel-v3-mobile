@@ -63,6 +63,13 @@ export interface AttendanceMemberLookup {
   readonly last_name: string;
 }
 
+export interface AttendanceMemberLookupPage {
+  readonly count?: number;
+  readonly next?: number | null;
+  readonly previous?: number | null;
+  readonly results: readonly AttendanceMemberLookup[];
+}
+
 export type AttendanceCheckInOutcome = 'checked_in' | 'already_checked_in';
 
 export interface AttendanceCheckInResponse {

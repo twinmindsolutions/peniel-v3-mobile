@@ -34,9 +34,9 @@
             [debounce]="0"
             (ionInput)="onSearch($event)"
           />
-          @if (memberLoading()) {
+          @if (memberLoading() && !members().length) {
             <app-feedback-state kind="loading" title="Searching members" message="Checking eligible members for this session." />
-          } @else if (memberError()) {
+          } @else if (memberError() && !members().length) {
             <app-feedback-state title="Member search unavailable" message="We could not load eligible members. Please try again." (retry)="searchMembers()" />
           } @else if (!members().length) {
             <p class="muted search-empty">No eligible members found.</p>
@@ -48,6 +48,15 @@
                 </ion-item>
               }
             </ion-list>
+            <ion-infinite-scroll
+              threshold="100px"
+              [disabled]="memberNextPage() === null || memberLoading()"
+              (ionInfinite)="loadMoreMembers($event)"
+            >
+              <ion-infinite-scroll-content loadingText="Loading more members..." />
+            </ion-infinite-scroll>
+            @if (memberLoading()) { <p class="muted search-loading" role="status">Loading more eligible members...</p> }
+            @if (memberError()) { <p class="search-error" role="alert">More members could not be loaded. Try again.</p> }
           }
           @if (selectedMember(); as member) {
             <div class="confirmation-panel" role="dialog" aria-labelledby="selected-member-title">

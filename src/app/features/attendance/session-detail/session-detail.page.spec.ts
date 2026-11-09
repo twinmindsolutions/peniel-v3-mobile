@@ -52,6 +52,29 @@ describe('SessionDetailPage', () => {
     expect(fixture.componentInstance.sessionId).toBe('session-1');
   });
 
+  it('loads member-search pages, deduplicates overlaps, and exposes the next page', async () => {
+    api.searchMembers
+      .mockReturnValueOnce(of({
+        count: 28, next: 2, previous: null,
+        results: [{ id: 'member-1', membership_number: 'A', first_name: 'Ada', last_name: 'Lovelace' }],
+      }))
+      .mockReturnValueOnce(of({
+        count: 28, next: null, previous: 1,
+        results: [
+          { id: 'member-1', membership_number: 'A', first_name: 'Ada', last_name: 'Lovelace' },
+          { id: 'member-2', membership_number: 'B', first_name: 'Grace', last_name: 'Hopper' },
+        ],
+      }));
+    const page = fixture.componentInstance;
+    await page.searchMembers('');
+    expect(page.memberNextPage()).toBe(2);
+    const event = { target: { complete: vi.fn() } };
+    await page.loadMoreMembers(event);
+    expect(page.members().map((member) => member.id)).toEqual(['member-1', 'member-2']);
+    expect(page.memberNextPage()).toBe(null);
+    expect(event.target.complete).toHaveBeenCalledOnce();
+  });
+
   it('recognizes a session whose recording deadline has passed', () => {
     const session = {
       status: 'scheduled',

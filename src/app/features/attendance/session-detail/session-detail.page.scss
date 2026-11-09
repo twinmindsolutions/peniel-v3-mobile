@@ -15,5 +15,7 @@ h3 { color: var(--peniel-ink); font-size: var(--peniel-type-body); margin: 0; } 
 .qr-preview span { color: var(--peniel-muted); font-size: var(--peniel-type-supporting); }
 .member-list { background: transparent; margin: 0 0 var(--peniel-space-3); }
 .member-list ion-item { --background: var(--peniel-surface-muted); --border-radius: var(--peniel-radius-md); --min-height: 58px; margin-bottom: var(--peniel-space-2); }
+.search-loading, .search-error { margin: var(--peniel-space-2) 0; text-align: center; }
+.search-error { color: var(--peniel-danger, #b42318); }
 .confirmation-panel { align-items: stretch; border-top: 1px solid var(--peniel-border); display: grid; gap: var(--peniel-space-2); margin-top: var(--peniel-space-4); padding-top: var(--peniel-space-4); }
 @media (max-width: 380px) { dl { grid-template-columns: 1fr; } }

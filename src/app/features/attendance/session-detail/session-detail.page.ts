@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, effect, inject, OnDestroy, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonList, IonSearchbar, IonTitle, IonToolbar } from '@ionic/angular';
+import { IonContent, IonHeader, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent, IonItem, IonLabel, IonList, IonSearchbar, IonTitle, IonToolbar } from '@ionic/angular';
 import { addIcons } from 'ionicons';
 import { qrCodeOutline } from 'ionicons/icons';
 import { firstValueFrom } from 'rxjs';
@@ -20,7 +20,7 @@ import { AppButtonComponent } from '../../../shared/ui/app-button/app-button.com
   selector: 'app-attendance-session-detail',
   templateUrl: './session-detail.page.html',
   styleUrls: ['./session-detail.page.scss'],
-  imports: [IonContent, IonHeader, IonIcon, IonItem, IonLabel, IonList, IonSearchbar, IonTitle, IonToolbar, AppFeedbackStateComponent, AppPageShellComponent, AppButtonComponent],
+  imports: [IonContent, IonHeader, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent, IonItem, IonLabel, IonList, IonSearchbar, IonTitle, IonToolbar, AppFeedbackStateComponent, AppPageShellComponent, AppButtonComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SessionDetailPage implements OnDestroy {
@@ -41,12 +41,14 @@ export class SessionDetailPage implements OnDestroy {
   readonly loading = signal(false);
   readonly memberLoading = signal(false);
   readonly memberError = signal(false);
+  readonly memberNextPage = signal<number | null>(null);
   readonly error = signal(false);
   readonly checkInInFlight = signal(false);
   readonly searchTerm = signal('');
   readonly sessionId: string;
   private requestVersion = 0;
   private memberRequestVersion = 0;
+  private memberSearch = '';
   private lastKey = '';
   private deferredContextLoad = false;
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -86,6 +88,9 @@ export class SessionDetailPage implements OnDestroy {
     this.session.set(null);
     this.summary.set(null);
     this.members.set([]);
+    this.memberNextPage.set(null);
+    this.memberSearch = '';
+    const memberVersion = ++this.memberRequestVersion;
     this.selectedMember.set(null);
     this.qrPreview.set(null);
     this.scannerMessage.set(null);
@@ -108,9 +113,9 @@ export class SessionDetailPage implements OnDestroy {
       if (!this.isCurrent(version, organizationId, branchId)) return;
       if (summaryResult.status === 'rejected') throw summaryResult.reason;
       this.summary.set(summaryResult.value);
-      if (membersResult.status === 'fulfilled') {
-        this.members.set(membersResult.value.results);
-      } else {
+      if (membersResult.status === 'fulfilled' && memberVersion === this.memberRequestVersion) {
+        this.applyMemberPage(membersResult.value.results, membersResult.value.next ?? null, true);
+      } else if (membersResult.status === 'rejected' && memberVersion === this.memberRequestVersion) {
         this.members.set([]);
         this.memberError.set(true);
       }
@@ -118,7 +123,7 @@ export class SessionDetailPage implements OnDestroy {
       if (this.isCurrent(version, organizationId, branchId)) this.error.set(true);
     } finally {
       if (this.isCurrent(version, organizationId, branchId)) this.loading.set(false);
-      if (this.isCurrent(version, organizationId, branchId)) this.memberLoading.set(false);
+      if (this.isCurrent(version, organizationId, branchId) && memberVersion === this.memberRequestVersion) this.memberLoading.set(false);
     }
   }
 
@@ -134,18 +139,60 @@ export class SessionDetailPage implements OnDestroy {
     const branchId = this.workspace.selectedBranchId();
     if (!organizationId || !branchId || !this.sessionId || !this.attendance.canViewAttendance()) return;
     const version = ++this.memberRequestVersion;
+    const normalizedSearch = value.trim();
+    this.memberSearch = normalizedSearch;
+    this.memberNextPage.set(null);
+    this.members.set([]);
     this.memberLoading.set(true);
     this.memberError.set(false);
     try {
-      const response = await firstValueFrom(this.api.searchMembers(organizationId, this.sessionId, value));
+      const response = await firstValueFrom(this.api.searchMembers(organizationId, this.sessionId, normalizedSearch, 1));
       if (version === this.memberRequestVersion && this.workspace.selectedOrganizationId() === organizationId && this.workspace.selectedBranchId() === branchId) {
-        this.members.set(response.results);
+        this.applyMemberPage(response.results, response.next ?? null, true);
       }
     } catch {
       if (version === this.memberRequestVersion) { this.members.set([]); this.memberError.set(true); }
     } finally {
       if (version === this.memberRequestVersion) this.memberLoading.set(false);
     }
+  }
+
+  async loadMoreMembers(event: { target: { complete: () => void } }): Promise<void> {
+    const organizationId = this.workspace.selectedOrganizationId();
+    const branchId = this.workspace.selectedBranchId();
+    const nextPage = this.memberNextPage();
+    if (!organizationId || !branchId || !this.sessionId || !this.attendance.canViewAttendance() || nextPage === null || this.memberLoading()) {
+      event.target.complete();
+      return;
+    }
+    const version = ++this.memberRequestVersion;
+    this.memberLoading.set(true);
+    this.memberError.set(false);
+    try {
+      const response = await firstValueFrom(this.api.searchMembers(organizationId, this.sessionId, this.memberSearch, nextPage));
+      if (version === this.memberRequestVersion && this.workspace.selectedOrganizationId() === organizationId && this.workspace.selectedBranchId() === branchId) {
+        this.applyMemberPage(response.results, response.next ?? null, false);
+      }
+    } catch {
+      if (version === this.memberRequestVersion) this.memberError.set(true);
+    } finally {
+      if (version === this.memberRequestVersion) this.memberLoading.set(false);
+      event.target.complete();
+    }
+  }
+
+  private applyMemberPage(results: readonly AttendanceMemberLookup[], next: number | null, replace: boolean): void {
+    const existing = replace ? [] : this.members();
+    const seen = new Set(existing.map((member) => member.id));
+    const merged = [...existing];
+    for (const member of results) {
+      if (!seen.has(member.id)) {
+        seen.add(member.id);
+        merged.push(member);
+      }
+    }
+    this.members.set(merged);
+    this.memberNextPage.set(next);
   }
 
   selectMember(member: AttendanceMemberLookup): void {

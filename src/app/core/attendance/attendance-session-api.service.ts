@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '../config/api-config.service';
-import { AttendanceCheckInResponse, AttendanceMemberLookup, AttendanceQrPreviewResponse, AttendanceSession, AttendanceSessionListResponse, AttendanceSessionSummary } from './attendance.models';
+import { AttendanceCheckInResponse, AttendanceMemberLookupPage, AttendanceQrPreviewResponse, AttendanceSession, AttendanceSessionListResponse, AttendanceSessionSummary } from './attendance.models';
 
 @Injectable({ providedIn: 'root' })
 export class AttendanceSessionApiService {
@@ -28,9 +28,10 @@ export class AttendanceSessionApiService {
     ));
   }
 
-  searchMembers(organizationId: string, sessionId: string, search = ''): Observable<{ readonly results: readonly AttendanceMemberLookup[] }> {
-    const params = search.trim() ? new HttpParams().set('search', search.trim()) : undefined;
-    return this.http.get<{ readonly results: readonly AttendanceMemberLookup[] }>(this.url(
+  searchMembers(organizationId: string, sessionId: string, search = '', page = 1, pageSize = 25): Observable<AttendanceMemberLookupPage> {
+    let params = new HttpParams().set('page', page).set('page_size', pageSize);
+    if (search.trim()) params = params.set('search', search.trim());
+    return this.http.get<AttendanceMemberLookupPage>(this.url(
       `/organizations/${encodeURIComponent(organizationId)}/attendance/sessions/${encodeURIComponent(sessionId)}/members/`,
     ), { params });
   }
