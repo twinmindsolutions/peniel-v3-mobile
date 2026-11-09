@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiConfigService } from '../config/api-config.service';
-import { AttendanceCheckInResponse, AttendanceMemberLookupPage, AttendanceQrPreviewResponse, AttendanceSession, AttendanceSessionListResponse, AttendanceSessionSummary } from './attendance.models';
+import { AttendanceCheckInResponse, AttendanceMemberLookupPage, AttendanceQrPreviewResponse, AttendanceSession, AttendanceSessionListResponse, AttendanceSessionSummary, BulkAttendanceCheckInItem, BulkAttendanceCheckInResponse } from './attendance.models';
 
 @Injectable({ providedIn: 'root' })
 export class AttendanceSessionApiService {
@@ -40,6 +40,12 @@ export class AttendanceSessionApiService {
     return this.http.post<AttendanceCheckInResponse>(this.url(
       `/organizations/${encodeURIComponent(organizationId)}/attendance/sessions/${encodeURIComponent(sessionId)}/check-in/manual/`,
     ), { member_id: memberId });
+  }
+
+  recordBulkManualCheckIn(organizationId: string, sessionId: string, items: readonly BulkAttendanceCheckInItem[]): Observable<BulkAttendanceCheckInResponse> {
+    return this.http.post<BulkAttendanceCheckInResponse>(this.url(
+      `/organizations/${encodeURIComponent(organizationId)}/attendance/sessions/${encodeURIComponent(sessionId)}/check-in/bulk/`,
+    ), { items });
   }
 
   previewQrCheckIn(organizationId: string, sessionId: string, qrIdentifier: string): Observable<AttendanceQrPreviewResponse> {

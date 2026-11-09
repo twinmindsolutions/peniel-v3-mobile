@@ -23,6 +23,9 @@
             <ion-icon slot="start" name="qr-code-outline" aria-hidden="true" />
             Scan QR code
           </app-button>
+          <app-button variant="ghost" expand="block" [disabled]="qrScanInFlight() || checkInInFlight() || bulkSubmitting()" (click)="startBulkManualCheckIn()">
+            Bulk manual check-in
+          </app-button>
           @if (scannerMessage(); as message) {
             <p class="scanner-message" role="status">{{ message }}</p>
           }
@@ -43,8 +46,32 @@
           } @else {
             <ion-list class="member-list" lines="none">
               @for (member of members(); track member.id) {
-              <ion-item button detail="true" [disabled]="checkInInFlight() || qrScanInFlight()" (click)="selectMember(member)">
-                  <ion-label><h3>{{ member.first_name }} {{ member.last_name }}</h3><p>{{ member.membership_number }}</p></ion-label>
+              <ion-item
+                button
+                detail="true"
+                [class.member-selected]="bulkMode() && isQueued(member.id)"
+                [class.member-attended]="!!member.already_attended"
+                [disabled]="checkInInFlight() || qrScanInFlight() || bulkSubmitting() || !!member.already_attended"
+                (click)="selectMember(member)"
+                [attr.aria-label]="bulkMode() ? memberSelectionLabel(member) : null"
+                [attr.aria-pressed]="bulkMode() && !member.already_attended ? isQueued(member.id) : null"
+              >
+                  @if (bulkMode()) {
+                    <ion-icon
+                      slot="start"
+                      class="member-selection-icon"
+                      [class.member-selection-icon--attended]="!!member.already_attended"
+                      [name]="member.already_attended || isQueued(member.id) ? 'checkmark-circle' : 'ellipse-outline'"
+                      aria-hidden="true"
+                    />
+                  }
+                  <ion-label>
+                    <h3>{{ member.first_name }} {{ member.last_name }}</h3>
+                    <p>
+                      {{ member.membership_number }}
+                      @if (member.already_attended) { <span class="member-status member-status--attended">Present</span> }
+                    </p>
+                  </ion-label>
                 </ion-item>
               }
             </ion-list>
@@ -58,7 +85,43 @@
             @if (memberLoading()) { <p class="muted search-loading" role="status">Loading more eligible members...</p> }
             @if (memberError()) { <p class="search-error" role="alert">More members could not be loaded. Try again.</p> }
           }
-          @if (selectedMember(); as member) {
+          @if (bulkMode()) {
+            <div class="bulk-selection-bar" aria-live="polite">
+              <div class="bulk-selection-count">
+                <span class="eyebrow">Bulk selection</span>
+                <strong>{{ queueItems().length }}</strong>
+                <span>member{{ queueItems().length === 1 ? '' : 's' }} selected</span>
+              </div>
+              <app-button variant="navy" [disabled]="!queueItems().length || bulkSubmitting()" (click)="reviewBulkSelection()">Review selection</app-button>
+              <app-button variant="ghost" [disabled]="bulkSubmitting()" (click)="exitBulkManualCheckIn()">Cancel bulk check-in</app-button>
+            </div>
+          }
+          @if (bulkReview()) {
+            <div class="bulk-review" role="dialog" aria-labelledby="bulk-review-title">
+              <p class="eyebrow">Review selection</p>
+              <h3 id="bulk-review-title">{{ queueItems().length }} member{{ queueItems().length === 1 ? '' : 's' }} for {{ session()!.branch.name }}</h3>
+              <p class="muted">Confirming will submit these manual check-ins for {{ session()!.service_type_name_snapshot || session()!.service_type.name }}.</p>
+              <ion-list class="member-list" lines="none">
+                @for (item of queueItems(); track item.memberId) {
+                  <ion-item>
+                    <ion-label><h3>{{ item.firstName }} {{ item.lastName }}</h3><p>{{ item.membershipNumber }}</p></ion-label>
+                    <app-button slot="end" variant="ghost" [disabled]="bulkSubmitting()" (click)="removeQueuedMember(item.memberId)">Remove</app-button>
+                  </ion-item>
+                }
+              </ion-list>
+              @if (bulkResults().length) {
+                <div class="bulk-results" role="status">
+                  <p class="eyebrow">Submission results</p>
+                  @for (item of bulkSubmittedItems(); track item.memberId) {
+                    @if (bulkResultFor(item); as result) { <p>{{ item.firstName }} {{ item.lastName }}: {{ result.status.replace('_', ' ') }}</p> }
+                  }
+                </div>
+              }
+              <app-button variant="navy" expand="block" [loading]="bulkSubmitting()" [disabled]="bulkSubmitting() || !queueItems().length" (click)="confirmBulkCheckIn()">Confirm check-in</app-button>
+              <app-button variant="ghost" expand="block" [disabled]="bulkSubmitting()" (click)="backToBulkSelection()">Back to selection</app-button>
+            </div>
+          }
+          @if (!bulkMode() && selectedMember(); as member) {
             <div class="confirmation-panel" role="dialog" aria-labelledby="selected-member-title">
               <div><p class="eyebrow">Ready to confirm</p><h3 id="selected-member-title">{{ member.first_name }} {{ member.last_name }}</h3><p class="muted">{{ member.membership_number }}</p></div>
               <app-button variant="navy" expand="block" [loading]="checkInInFlight()" [disabled]="checkInInFlight()" (click)="confirmSelectedMember()">Confirm check-in</app-button>

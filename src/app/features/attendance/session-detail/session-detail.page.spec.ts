@@ -3,8 +3,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { SessionDetailPage } from './session-detail.page';
+import { AuthService } from '../../../core/auth/auth.service';
 import { getRecordingUnavailableMessage } from './session-detail.page';
-import { AttendanceSession } from '../../../core/attendance/attendance.models';
+import { AttendanceMemberLookup, AttendanceSession } from '../../../core/attendance/attendance.models';
 import { AttendanceSessionApiService } from '../../../core/attendance/attendance-session-api.service';
 import { AttendancePermissionService } from '../../../core/attendance/attendance-permission.service';
 import { QrScannerService } from '../../../core/attendance/qr-scanner.service';
@@ -20,12 +21,14 @@ describe('SessionDetailPage', () => {
     getSession: vi.fn(() => of(null)),
     getAttendanceSummary: vi.fn(() => of(null)),
     searchMembers: vi.fn(() => of({ results: [] })),
+    recordBulkManualCheckIn: vi.fn(() => of({ results: [] })),
     previewQrCheckIn: vi.fn(() => of({ display_name: 'Member', membership_number: 'P-001', attendance_status: 'not_checked_in' })),
     recordQrCheckIn: vi.fn(() => of({ outcome: 'recorded' })),
   };
   const qrScanner = { scan: vi.fn(), stop: vi.fn() };
   const notifications = { confirm: vi.fn(() => Promise.resolve(false)), warning: vi.fn(), error: vi.fn(), success: vi.fn() };
   const workspaceAuthorization = { refresh: vi.fn(() => Promise.resolve(true)) };
+  const auth = { user: vi.fn(() => ({ id: 'user-1' })) };
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -42,6 +45,7 @@ describe('SessionDetailPage', () => {
         { provide: QrScannerService, useValue: qrScanner },
         { provide: NotificationService, useValue: notifications },
         { provide: WorkspaceAuthorizationService, useValue: workspaceAuthorization },
+        { provide: AuthService, useValue: auth },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: { get: () => 'session-1' } } } },
       ],
     }).compileComponents();
@@ -73,6 +77,59 @@ describe('SessionDetailPage', () => {
     expect(page.members().map((member) => member.id)).toEqual(['member-1', 'member-2']);
     expect(page.memberNextPage()).toBe(null);
     expect(event.target.complete).toHaveBeenCalledOnce();
+  });
+
+  it('queues selected members without recording until bulk confirmation', async () => {
+    const page = fixture.componentInstance;
+    const member = { id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' };
+    await page.searchMembers('');
+    page.startBulkManualCheckIn();
+    page.selectMember(member);
+    expect(page.queueItems()).toHaveLength(1);
+    expect(api.recordBulkManualCheckIn).not.toHaveBeenCalled();
+    page.reviewBulkSelection();
+    await page.confirmBulkCheckIn();
+    expect(api.recordBulkManualCheckIn).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the bulk selection count when the visible search page changes', async () => {
+    const page = fixture.componentInstance;
+    const member = { id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' };
+    page.startBulkManualCheckIn();
+    page.selectMember(member);
+
+    await page.searchMembers('Grace');
+
+    expect(page.queueItems()).toHaveLength(1);
+    expect(page.isQueued('member-1')).toBe(true);
+    expect(page.memberSelectionLabel(member)).toBe('Remove Ada Lovelace from bulk check-in selection');
+  });
+
+  it('locks existing attendance records and submits only new selections', async () => {
+    const page = fixture.componentInstance;
+    const present = { id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace', already_attended: true };
+    const selected = { id: 'member-2', membership_number: 'P-002', first_name: 'Grace', last_name: 'Hopper' };
+    page.startBulkManualCheckIn();
+    page.selectMember(present);
+    page.selectMember(selected);
+
+    expect(page.queueItems().map((item) => item.memberId)).toEqual(['member-2']);
+    await page.confirmBulkCheckIn();
+    expect(api.recordBulkManualCheckIn).toHaveBeenCalledWith('org-1', 'session-1', [expect.objectContaining({ member_id: 'member-2' })]);
+  });
+
+  it('removes a newly attended member from the queue when refreshed data is authoritative', () => {
+    const page = fixture.componentInstance;
+    const member = { id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' };
+    page.startBulkManualCheckIn();
+    page.selectMember(member);
+    expect(page.queueItems()).toHaveLength(1);
+
+    (page as unknown as { applyMemberPage: (rows: readonly AttendanceMemberLookup[], next: number | null, replace: boolean) => void })
+      .applyMemberPage([{ ...member, already_attended: true }], null, true);
+
+    expect(page.queueItems()).toHaveLength(0);
+    expect(page.memberSelectionLabel({ ...member, already_attended: true })).toBe('Ada Lovelace, already attended');
   });
 
   it('recognizes a session whose recording deadline has passed', () => {

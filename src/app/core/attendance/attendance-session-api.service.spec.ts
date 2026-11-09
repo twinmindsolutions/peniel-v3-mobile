@@ -81,4 +81,16 @@ describe('AttendanceSessionApiService', () => {
     expect(recording.request.body).toEqual({ qr_identifier: 'qr-id' });
     recording.flush({ outcome: 'already_checked_in' });
   });
+
+  it('submits bounded bulk manual check-ins with stable item keys', () => {
+    service.recordBulkManualCheckIn('org', 'session', [
+      { idempotency_key: 'key-1', member_id: 'member-1', method: 'manual' },
+    ]).subscribe((response) => expect(response.results[0].status).toBe('checked_in'));
+    const request = http.expectOne('/api/v1/organizations/org/attendance/sessions/session/check-in/bulk/');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ items: [
+      { idempotency_key: 'key-1', member_id: 'member-1', method: 'manual' },
+    ] });
+    request.flush({ results: [{ idempotency_key: 'key-1', member_id: 'member-1', status: 'checked_in' }] });
+  });
 });

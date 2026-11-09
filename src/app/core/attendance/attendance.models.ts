@@ -61,6 +61,7 @@ export interface AttendanceMemberLookup {
   readonly membership_number: string;
   readonly first_name: string;
   readonly last_name: string;
+  readonly already_attended?: boolean;
 }
 
 export interface AttendanceMemberLookupPage {
@@ -68,6 +69,24 @@ export interface AttendanceMemberLookupPage {
   readonly next?: number | null;
   readonly previous?: number | null;
   readonly results: readonly AttendanceMemberLookup[];
+}
+
+export type BulkAttendanceResultStatus = 'checked_in' | 'already_attended' | 'unauthorized' | 'ineligible' | 'failed';
+
+export interface BulkAttendanceCheckInItem {
+  readonly idempotency_key: string;
+  readonly member_id: string;
+  readonly method: 'manual' | 'qr';
+}
+
+export interface BulkAttendanceCheckInResult {
+  readonly idempotency_key: string;
+  readonly member_id?: string;
+  readonly status: BulkAttendanceResultStatus;
+}
+
+export interface BulkAttendanceCheckInResponse {
+  readonly results: readonly BulkAttendanceCheckInResult[];
 }
 
 export type AttendanceCheckInOutcome = 'checked_in' | 'already_checked_in';

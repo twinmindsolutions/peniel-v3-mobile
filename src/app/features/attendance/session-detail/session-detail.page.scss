@@ -14,8 +14,22 @@ h3 { color: var(--peniel-ink); font-size: var(--peniel-type-body); margin: 0; } 
 .qr-preview strong { color: var(--peniel-ink); }
 .qr-preview span { color: var(--peniel-muted); font-size: var(--peniel-type-supporting); }
 .member-list { background: transparent; margin: 0 0 var(--peniel-space-3); }
-.member-list ion-item { --background: var(--peniel-surface-muted); --border-radius: var(--peniel-radius-md); --min-height: 58px; margin-bottom: var(--peniel-space-2); }
+.member-list ion-item { --background: var(--peniel-surface-muted); --border-color: var(--peniel-border); --border-radius: var(--peniel-radius-md); --border-style: solid; --border-width: 1px; --min-height: 58px; margin-bottom: var(--peniel-space-2); }
+.member-list ion-item.member-selected { --background: color-mix(in srgb, var(--peniel-primary) 10%, var(--peniel-surface)); --border-color: var(--peniel-primary); }
+.member-list ion-item.member-attended { --background: var(--peniel-surface-muted); --border-color: var(--peniel-border); }
+.member-selection-icon { color: var(--peniel-primary); font-size: 1.35rem; margin-inline-end: var(--peniel-space-2); }
+.member-selection-icon--attended { color: var(--peniel-success, #17845b); }
+.member-status { font-size: var(--peniel-type-caption); font-weight: 700; margin-inline-start: var(--peniel-space-2); }
+.member-status--attended { color: var(--peniel-success, #17845b); }
 .search-loading, .search-error { margin: var(--peniel-space-2) 0; text-align: center; }
 .search-error { color: var(--peniel-danger, #b42318); }
+.bulk-selection-bar, .bulk-review { border-top: 1px solid var(--peniel-border); display: grid; gap: var(--peniel-space-2); margin-top: var(--peniel-space-4); padding-top: var(--peniel-space-4); }
+.bulk-selection-bar { align-items: center; grid-template-columns: 1fr; }
+.bulk-selection-count { align-items: baseline; color: var(--peniel-muted); display: flex; flex-wrap: wrap; gap: var(--peniel-space-2); }
+.bulk-selection-count .eyebrow { flex-basis: 100%; margin-bottom: 0; }
+.bulk-selection-count strong { color: var(--peniel-primary); font-size: 1.65rem; line-height: 1; }
+.bulk-review h3 { margin: 0; }
+.bulk-results { background: var(--peniel-surface-muted); border-radius: var(--peniel-radius-md); padding: var(--peniel-space-3); }
+.bulk-results p { color: var(--peniel-muted); margin: 4px 0; }
 .confirmation-panel { align-items: stretch; border-top: 1px solid var(--peniel-border); display: grid; gap: var(--peniel-space-2); margin-top: var(--peniel-space-4); padding-top: var(--peniel-space-4); }
 @media (max-width: 380px) { dl { grid-template-columns: 1fr; } }

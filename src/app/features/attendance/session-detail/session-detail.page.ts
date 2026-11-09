@@ -3,11 +3,13 @@ import { ChangeDetectionStrategy, Component, effect, inject, OnDestroy, signal }
 import { ActivatedRoute } from '@angular/router';
 import { IonContent, IonHeader, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent, IonItem, IonLabel, IonList, IonSearchbar, IonTitle, IonToolbar } from '@ionic/angular';
 import { addIcons } from 'ionicons';
-import { qrCodeOutline } from 'ionicons/icons';
+import { checkmarkCircle, ellipseOutline, qrCodeOutline } from 'ionicons/icons';
 import { firstValueFrom } from 'rxjs';
 import { AttendancePermissionService } from '../../../core/attendance/attendance-permission.service';
+import { AttendanceCheckInQueueItem, AttendanceCheckInQueueService } from '../../../core/attendance/attendance-check-in-queue.service';
 import { AttendanceSessionApiService } from '../../../core/attendance/attendance-session-api.service';
-import { AttendanceCheckInResponse, AttendanceMemberLookup, AttendanceQrPreviewResponse, AttendanceSession, AttendanceSessionSummary } from '../../../core/attendance/attendance.models';
+import { AttendanceCheckInResponse, AttendanceMemberLookup, AttendanceQrPreviewResponse, AttendanceSession, AttendanceSessionSummary, BulkAttendanceCheckInResult } from '../../../core/attendance/attendance.models';
+import { AuthService } from '../../../core/auth/auth.service';
 import { QrScannerService } from '../../../core/attendance/qr-scanner.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { WorkspaceAuthorizationService } from '../../../core/workspace/workspace-authorization.service';
@@ -25,6 +27,8 @@ import { AppButtonComponent } from '../../../shared/ui/app-button/app-button.com
 })
 export class SessionDetailPage implements OnDestroy {
   private readonly api = inject(AttendanceSessionApiService);
+  private readonly auth = inject(AuthService);
+  private readonly checkInQueue = inject(AttendanceCheckInQueueService);
   private readonly route = inject(ActivatedRoute);
   private readonly notifications = inject(NotificationService);
   private readonly qrScanner = inject(QrScannerService);
@@ -45,6 +49,12 @@ export class SessionDetailPage implements OnDestroy {
   readonly error = signal(false);
   readonly checkInInFlight = signal(false);
   readonly searchTerm = signal('');
+  readonly bulkMode = signal(false);
+  readonly bulkReview = signal(false);
+  readonly bulkSubmitting = signal(false);
+  readonly queueItems = signal<readonly AttendanceCheckInQueueItem[]>([]);
+  readonly bulkSubmittedItems = signal<readonly AttendanceCheckInQueueItem[]>([]);
+  readonly bulkResults = signal<readonly BulkAttendanceCheckInResult[]>([]);
   readonly sessionId: string;
   private requestVersion = 0;
   private memberRequestVersion = 0;
@@ -54,7 +64,7 @@ export class SessionDetailPage implements OnDestroy {
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
-    addIcons({ qrCodeOutline });
+    addIcons({ checkmarkCircle, ellipseOutline, qrCodeOutline });
     this.sessionId = this.route.snapshot.paramMap.get('sessionId') ?? '';
     effect(() => {
       const key = `${this.workspace.selectedOrganizationId() ?? ''}:${this.workspace.selectedBranchId() ?? ''}:${this.attendance.canViewAttendance()}:${this.sessionId}`;
@@ -79,12 +89,20 @@ export class SessionDetailPage implements OnDestroy {
   ngOnDestroy(): void {
     if (this.searchTimer) clearTimeout(this.searchTimer);
     void this.qrScanner.stop();
+    this.checkInQueue.clear();
   }
 
   async load(): Promise<void> {
     const organizationId = this.workspace.selectedOrganizationId();
     const branchId = this.workspace.selectedBranchId();
     const version = ++this.requestVersion;
+    this.checkInQueue.setContext(
+      this.auth.user()?.id ?? '',
+      organizationId ?? '',
+      branchId ?? '',
+      this.sessionId,
+    );
+    this.syncQueue();
     this.session.set(null);
     this.summary.set(null);
     this.members.set([]);
@@ -182,22 +200,125 @@ export class SessionDetailPage implements OnDestroy {
   }
 
   private applyMemberPage(results: readonly AttendanceMemberLookup[], next: number | null, replace: boolean): void {
-    const existing = replace ? [] : this.members();
-    const seen = new Set(existing.map((member) => member.id));
-    const merged = [...existing];
+    const merged = replace ? [] : [...this.members()];
+    const positions = new Map(merged.map((member, index) => [member.id, index]));
     for (const member of results) {
-      if (!seen.has(member.id)) {
-        seen.add(member.id);
+      // The attendance endpoint is authoritative when a concurrent usher has
+      // checked a queued member in while this page was open.
+      if (member.already_attended) this.checkInQueue.remove(member.id);
+      const position = positions.get(member.id);
+      if (position === undefined) {
+        positions.set(member.id, merged.length);
         merged.push(member);
+      } else {
+        merged[position] = member;
       }
     }
     this.members.set(merged);
+    this.syncQueue();
     this.memberNextPage.set(next);
   }
 
   selectMember(member: AttendanceMemberLookup): void {
     if (!this.attendance.canRecordAttendance() || this.checkInInFlight() || this.qrScanInFlight() || this.recordingUnavailableMessage()) return;
+    if (member.already_attended) return;
+    if (this.bulkMode()) {
+      if (this.checkInQueue.has(member.id)) this.checkInQueue.remove(member.id);
+      else this.checkInQueue.addManual(member);
+      this.syncQueue();
+      return;
+    }
     this.selectedMember.set(member);
+  }
+
+  startBulkManualCheckIn(): void {
+    if (!this.attendance.canRecordAttendance() || this.recordingUnavailableMessage()) return;
+    this.bulkMode.set(true);
+    this.bulkReview.set(false);
+    this.bulkResults.set([]);
+    this.bulkSubmittedItems.set([]);
+    this.syncQueue();
+  }
+
+  exitBulkManualCheckIn(): void {
+    this.bulkMode.set(false);
+    this.bulkReview.set(false);
+    this.bulkResults.set([]);
+    this.checkInQueue.clear();
+    this.syncQueue();
+  }
+
+  reviewBulkSelection(): void {
+    if (this.queueItems().length) this.bulkReview.set(true);
+  }
+
+  backToBulkSelection(): void {
+    this.bulkReview.set(false);
+  }
+
+  removeQueuedMember(memberId: string): void {
+    this.checkInQueue.remove(memberId);
+    this.syncQueue();
+  }
+
+  async confirmBulkCheckIn(): Promise<void> {
+    const organizationId = this.workspace.selectedOrganizationId();
+    const branchId = this.workspace.selectedBranchId();
+    const selected = this.queueItems();
+    if (!organizationId || !branchId || !selected.length || this.bulkSubmitting() || !this.attendance.canRecordAttendance()) return;
+    const version = this.requestVersion;
+    this.bulkSubmittedItems.set(selected);
+    this.bulkSubmitting.set(true);
+    try {
+      const response = await firstValueFrom(this.api.recordBulkManualCheckIn(
+        organizationId,
+        this.sessionId,
+        selected.map((item) => ({
+          idempotency_key: item.idempotencyKey,
+          member_id: item.memberId,
+          method: item.source,
+        })),
+      ));
+      if (version !== this.requestVersion || this.workspace.selectedOrganizationId() !== organizationId || this.workspace.selectedBranchId() !== branchId) return;
+      this.bulkResults.set(response.results);
+      for (const result of response.results) {
+        if (result.status === 'checked_in' || result.status === 'already_attended') {
+          const item = selected.find((candidate) => candidate.idempotencyKey === result.idempotency_key);
+          if (item) this.checkInQueue.remove(item.memberId);
+        }
+      }
+      this.syncQueue();
+      const checkedIn = response.results.filter((result) => result.status === 'checked_in').length;
+      const failed = response.results.length - checkedIn;
+      if (checkedIn) await this.notifications.success(`${checkedIn} member${checkedIn === 1 ? '' : 's'} checked in successfully.`);
+      if (failed) await this.notifications.warning(`${failed} member${failed === 1 ? '' : 's'} could not be checked in. Review the results and retry if appropriate.`);
+      this.bulkReview.set(true);
+      await this.refreshSummary();
+    } catch {
+      await this.notifications.error('The bulk check-in could not be completed. Your selection was preserved so you can retry.');
+    } finally {
+      this.bulkSubmitting.set(false);
+    }
+  }
+
+  isQueued(memberId: string): boolean {
+    return this.checkInQueue.has(memberId);
+  }
+
+  memberSelectionLabel(member: AttendanceMemberLookup): string {
+    const name = `${member.first_name} ${member.last_name}`.trim();
+    if (member.already_attended) return `${name}, already attended`;
+    return this.isQueued(member.id)
+      ? `Remove ${name} from bulk check-in selection`
+      : `Select ${name} for bulk check-in`;
+  }
+
+  bulkResultFor(item: AttendanceCheckInQueueItem): BulkAttendanceCheckInResult | undefined {
+    return this.bulkResults().find((result) => result.idempotency_key === item.idempotencyKey);
+  }
+
+  private syncQueue(): void {
+    this.queueItems.set(this.checkInQueue.items());
   }
 
   async scanQr(): Promise<void> {
