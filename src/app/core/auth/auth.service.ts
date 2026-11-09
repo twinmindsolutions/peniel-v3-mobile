@@ -44,11 +44,11 @@ export class AuthService {
     return this.accessToken;
   }
 
-  async login(email: string, password: string): Promise<void> {
+  async login(loginIdentifier: string, password: string): Promise<void> {
     await this.clearLocalSession();
     this.statusSignal.set('initializing');
     try {
-      const response = await firstValueFrom(this.api.login(email, password));
+      const response = await firstValueFrom(this.api.login(loginIdentifier, password));
       await this.persistRefreshCredential(response);
       this.setAuthenticated(response);
       await this.resolveWorkspace(response.user.id);

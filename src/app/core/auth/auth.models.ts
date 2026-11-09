@@ -1,6 +1,7 @@
 export interface MobileUser {
   readonly id: string;
-  readonly email: string;
+  readonly email: string | null;
+  readonly login_identifier: string;
   readonly can_create_organization: boolean;
 }
 

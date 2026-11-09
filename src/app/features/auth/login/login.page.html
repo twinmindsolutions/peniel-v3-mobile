@@ -12,14 +12,14 @@
       <h1>Sign in to your workspace</h1>
 
       <form class="login-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
-        <app-form-field label="Email address" [error]="emailError" [required]="true">
+        <app-form-field label="Username or email" [error]="loginIdentifierError" [required]="true">
           <ion-input
-            formControlName="email"
-            type="email"
+            formControlName="loginIdentifier"
+            type="text"
             autocomplete="username"
-            placeholder="you@example.com"
+            placeholder="Username or email"
             fill="outline"
-            aria-label="Email address"
+            aria-label="Username or email"
           />
         </app-form-field>
 

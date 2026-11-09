@@ -35,7 +35,7 @@ export class LoginPage {
   private readonly router = inject(Router);
 
   readonly form = this.formBuilder.nonNullable.group({
-    email: ['', [Validators.required, Validators.email]],
+    loginIdentifier: ['', [Validators.required]],
     password: ['', [Validators.required]],
   });
   showPassword = false;
@@ -57,8 +57,8 @@ export class LoginPage {
     this.submitting = true;
     this.errorMessage = '';
     try {
-      const { email, password } = this.form.getRawValue();
-      await this.auth.login(email.trim(), password);
+      const { loginIdentifier, password } = this.form.getRawValue();
+      await this.auth.login(loginIdentifier.trim(), password);
       await this.router.navigateByUrl('/app/workspace');
     } catch (error: unknown) {
       const message = this.messageFor(error);
@@ -86,9 +86,9 @@ export class LoginPage {
     return 'We could not sign you in. Check your connection and try again.';
   }
 
-  get emailError(): string {
-    return this.form.controls.email.touched && this.form.controls.email.invalid
-      ? 'Enter a valid email address.'
+  get loginIdentifierError(): string {
+    return this.form.controls.loginIdentifier.touched && this.form.controls.loginIdentifier.invalid
+      ? 'Enter your username or email.'
       : '';
   }
 

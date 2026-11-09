@@ -9,8 +9,11 @@ export class AuthApiService {
   private readonly http = inject(HttpClient);
   private readonly config = inject(ApiConfigService);
 
-  login(email: string, password: string): Observable<MobileTokenResponse> {
-    return this.http.post<MobileTokenResponse>(this.url('/auth/mobile/login/'), { email, password });
+  login(loginIdentifier: string, password: string): Observable<MobileTokenResponse> {
+    return this.http.post<MobileTokenResponse>(this.url('/auth/mobile/login/'), {
+      login_identifier: loginIdentifier,
+      password,
+    });
   }
 
   refresh(refreshToken: string): Observable<MobileTokenResponse> {

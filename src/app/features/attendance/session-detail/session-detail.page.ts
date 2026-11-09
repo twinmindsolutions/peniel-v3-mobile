@@ -175,7 +175,7 @@ export class SessionDetailPage implements OnDestroy {
         return;
       }
       if (scan.kind === 'invalid_payload') {
-        await this.notifications.warning('This QR code is not a Peniel member QR code.');
+        await this.notifications.warning('This is not a valid Peniel membership QR code.');
         return;
       }
       if (scan.kind === 'unavailable') {
@@ -185,7 +185,13 @@ export class SessionDetailPage implements OnDestroy {
       const authorized = await this.refreshScanAuthorization(version, organizationId, branchId);
       if (!authorized) return;
 
-      const preview = await firstValueFrom(this.api.previewQrCheckIn(organizationId, this.sessionId, scan.qrIdentifier));
+      let preview: AttendanceQrPreviewResponse;
+      try {
+        preview = await firstValueFrom(this.api.previewQrCheckIn(organizationId, this.sessionId, scan.qrIdentifier));
+      } catch (error: unknown) {
+        await this.handleQrPreviewError(error);
+        return;
+      }
       if (!this.isCurrentScan(version, organizationId, branchId)) {
         await this.notifyAuthorizationChanged();
         return;
@@ -285,6 +291,27 @@ export class SessionDetailPage implements OnDestroy {
     } else {
       await this.notifications.error('We could not record this check-in. Please try again when the session is available.');
     }
+  }
+
+  private async handleQrPreviewError(error: unknown): Promise<void> {
+    const status = error instanceof HttpErrorResponse ? error.status : 0;
+    if (status === 0) {
+      await this.notifications.error('We could not connect to attendance verification. Check your connection and try again.');
+      return;
+    }
+    if (status === 401) {
+      await this.notifications.error('Your session has expired. Please sign in again.');
+      return;
+    }
+    if (status === 400) {
+      await this.notifications.warning('This is not a valid Peniel membership QR code.');
+      return;
+    }
+    if (status === 403 || status === 404) {
+      await this.notifications.warning('This QR code could not be verified for this attendance session.');
+      return;
+    }
+    await this.notifications.error('Attendance verification is temporarily unavailable. Please try again.');
   }
 
   private safeBackendDetail(error: unknown): string | null {

@@ -1,6 +1,7 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { SessionDetailPage } from './session-detail.page';
 import { getRecordingUnavailableMessage } from './session-detail.page';
 import { AttendanceSession } from '../../../core/attendance/attendance.models';
@@ -73,7 +74,7 @@ describe('SessionDetailPage', () => {
   });
 
   it('waits for the scanner-return authorization refresh before requesting QR preview', async () => {
-    qrScanner.scan.mockResolvedValueOnce({ kind: 'success', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    qrScanner.scan.mockResolvedValueOnce({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
     notifications.confirm.mockResolvedValueOnce(true);
     const page = fixture.componentInstance;
 
@@ -86,7 +87,7 @@ describe('SessionDetailPage', () => {
   });
 
   it('fails closed when authorization changes while the scanner is returning', async () => {
-    qrScanner.scan.mockResolvedValueOnce({ kind: 'success', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    qrScanner.scan.mockResolvedValueOnce({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
     workspaceAuthorization.refresh.mockImplementationOnce(async () => {
       workspace.selectedBranchId.mockReturnValue('branch-2');
       return true;
@@ -97,5 +98,51 @@ describe('SessionDetailPage', () => {
     expect(api.previewQrCheckIn).not.toHaveBeenCalled();
     expect(notifications.error).toHaveBeenCalledWith('Your attendance authorization changed. Reopen the session before scanning again.');
     expect(api.recordQrCheckIn).not.toHaveBeenCalled();
+  });
+
+  it('distinguishes a locally malformed QR payload', async () => {
+    qrScanner.scan.mockResolvedValueOnce({ kind: 'invalid_payload' });
+
+    await fixture.componentInstance.scanQr();
+
+    expect(notifications.warning).toHaveBeenCalledWith('This is not a valid Peniel membership QR code.');
+    expect(api.previewQrCheckIn).not.toHaveBeenCalled();
+  });
+
+  it('uses a non-disclosing verification message for an unknown or out-of-scope QR', async () => {
+    qrScanner.scan.mockResolvedValueOnce({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    api.previewQrCheckIn.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 404 })));
+
+    await fixture.componentInstance.scanQr();
+
+    expect(notifications.warning).toHaveBeenCalledWith('This QR code could not be verified for this attendance session.');
+    expect(notifications.warning).not.toHaveBeenCalledWith(expect.stringContaining('Member'));
+  });
+
+  it('reports malformed preview requests separately from verification failures', async () => {
+    qrScanner.scan.mockResolvedValueOnce({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    api.previewQrCheckIn.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 400 })));
+
+    await fixture.componentInstance.scanQr();
+
+    expect(notifications.warning).toHaveBeenCalledWith('This is not a valid Peniel membership QR code.');
+  });
+
+  it('reports preview connectivity failures distinctly', async () => {
+    qrScanner.scan.mockResolvedValueOnce({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    api.previewQrCheckIn.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 0 })));
+
+    await fixture.componentInstance.scanQr();
+
+    expect(notifications.error).toHaveBeenCalledWith('We could not connect to attendance verification. Check your connection and try again.');
+  });
+
+  it('reports preview connectivity and server failures without exposing QR details', async () => {
+    qrScanner.scan.mockResolvedValueOnce({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    api.previewQrCheckIn.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 503 })));
+
+    await fixture.componentInstance.scanQr();
+
+    expect(notifications.error).toHaveBeenCalledWith('Attendance verification is temporarily unavailable. Please try again.');
   });
 });

@@ -15,7 +15,7 @@ const response: MobileTokenResponse = {
   refresh_expires_in: 604800,
   access_expires_at: '2026-10-23T12:15:00.000Z',
   refresh_expires_at: '2026-10-30T12:00:00.000Z',
-  user: { id: 'user-id', email: 'staff@example.test', can_create_organization: false },
+  user: { id: 'user-id', email: 'staff@example.test', login_identifier: 'staff@example.test', can_create_organization: false },
 };
 
 class TestCredentialAdapter implements CredentialStorageAdapter {
