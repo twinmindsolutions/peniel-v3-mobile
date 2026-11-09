@@ -73,4 +73,31 @@ describe('QrScannerService', () => {
 
     await expect(new QrScannerService().scan()).resolves.toEqual({ kind: 'invalid_payload' });
   });
+
+  it('starts an event-based continuous scan and stops its listeners cleanly', async () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(BarcodeScanner, 'isSupported').mockResolvedValue({ supported: true });
+    vi.spyOn(BarcodeScanner, 'checkPermissions').mockResolvedValue({ camera: 'granted' });
+    vi.spyOn(BarcodeScanner, 'startScan').mockResolvedValue();
+    vi.spyOn(BarcodeScanner, 'stopScan').mockResolvedValue();
+    const remove = vi.fn().mockResolvedValue();
+    vi.spyOn(App, 'addListener').mockResolvedValue({ remove } as never);
+    let listener: ((event: { barcodes: Array<{ rawValue?: string }> }) => void) | undefined;
+    vi.spyOn(BarcodeScanner, 'addListener').mockImplementation(async (_event, callback) => {
+      listener = callback as typeof listener;
+      return { remove } as never;
+    });
+
+    const outcomes: QrScanOutcome[] = [];
+    const session = await new QrScannerService().startContinuousScan((outcome) => {
+      if (outcome.kind !== 'paused') outcomes.push(outcome);
+    });
+
+    expect('stop' in session).toBe(true);
+    listener?.({ barcodes: [{ rawValue: '9bf65ada-3822-424a-8a78-608af3fdc819' }] });
+    expect(outcomes).toEqual([{ kind: 'scanned', qrIdentifier: '9bf65ada-3822-424a-8a78-608af3fdc819' }]);
+    if ('stop' in session) await session.stop();
+    expect(remove).toHaveBeenCalledOnce();
+    expect(BarcodeScanner.stopScan).toHaveBeenCalled();
+  });
 });

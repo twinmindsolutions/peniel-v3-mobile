@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, effect, inject, OnDestroy, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
+import { Haptics } from '@capacitor/haptics';
 import { IonContent, IonHeader, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent, IonItem, IonLabel, IonList, IonSearchbar, IonTitle, IonToolbar } from '@ionic/angular';
 import { addIcons } from 'ionicons';
 import { checkmarkCircle, ellipseOutline, qrCodeOutline } from 'ionicons/icons';
@@ -10,7 +11,7 @@ import { AttendanceCheckInQueueItem, AttendanceCheckInQueueService } from '../..
 import { AttendanceSessionApiService } from '../../../core/attendance/attendance-session-api.service';
 import { AttendanceCheckInResponse, AttendanceMemberLookup, AttendanceQrPreviewResponse, AttendanceSession, AttendanceSessionSummary, BulkAttendanceCheckInResult } from '../../../core/attendance/attendance.models';
 import { AuthService } from '../../../core/auth/auth.service';
-import { QrScannerService } from '../../../core/attendance/qr-scanner.service';
+import { QrContinuousScanOutcome, QrContinuousScanSession, QrScanOutcome, QrScannerService } from '../../../core/attendance/qr-scanner.service';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { WorkspaceAuthorizationService } from '../../../core/workspace/workspace-authorization.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
@@ -50,6 +51,9 @@ export class SessionDetailPage implements OnDestroy {
   readonly checkInInFlight = signal(false);
   readonly searchTerm = signal('');
   readonly bulkMode = signal(false);
+  readonly bulkQrScanning = signal(false);
+  readonly bulkQrPaused = signal(false);
+  readonly bulkQrResolutionInFlight = signal(false);
   readonly bulkReview = signal(false);
   readonly bulkSubmitting = signal(false);
   readonly queueItems = signal<readonly AttendanceCheckInQueueItem[]>([]);
@@ -62,14 +66,17 @@ export class SessionDetailPage implements OnDestroy {
   private lastKey = '';
   private deferredContextLoad = false;
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
+  private bulkQrSession: QrContinuousScanSession | undefined;
+  private readonly recentQrScans = new Map<string, number>();
 
   constructor() {
     addIcons({ checkmarkCircle, ellipseOutline, qrCodeOutline });
     this.sessionId = this.route.snapshot.paramMap.get('sessionId') ?? '';
     effect(() => {
       const key = `${this.workspace.selectedOrganizationId() ?? ''}:${this.workspace.selectedBranchId() ?? ''}:${this.attendance.canViewAttendance()}:${this.sessionId}`;
-      const scanBusy = this.qrScanInFlight() || this.checkInInFlight();
+      const scanBusy = this.qrScanInFlight() || this.bulkQrScanning() || this.checkInInFlight();
       if (scanBusy) {
+        if (key !== this.lastKey && this.bulkQrScanning()) void this.stopBulkQrScan();
         if (key !== this.lastKey) this.deferredContextLoad = true;
         this.lastKey = key;
         return;
@@ -88,6 +95,7 @@ export class SessionDetailPage implements OnDestroy {
 
   ngOnDestroy(): void {
     if (this.searchTimer) clearTimeout(this.searchTimer);
+    void this.stopBulkQrScan();
     void this.qrScanner.stop();
     this.checkInQueue.clear();
   }
@@ -240,7 +248,42 @@ export class SessionDetailPage implements OnDestroy {
     this.syncQueue();
   }
 
+  async startBulkQrScan(): Promise<void> {
+    if (!this.attendance.canRecordAttendance() || this.recordingUnavailableMessage() || this.bulkSubmitting() || this.qrScanInFlight()) return;
+    this.bulkMode.set(true);
+    this.bulkReview.set(false);
+    this.bulkQrPaused.set(false);
+    this.scannerMessage.set(null);
+    const result = await this.qrScanner.startContinuousScan((outcome) => void this.handleBulkQrOutcome(outcome));
+    if ('stop' in result) {
+      this.bulkQrSession = result;
+      this.bulkQrScanning.set(true);
+      return;
+    }
+    this.handleBulkQrStartFailure(result);
+  }
+
+  async pauseBulkQrScan(): Promise<void> {
+    await this.bulkQrSession?.stop();
+    this.bulkQrSession = undefined;
+    this.bulkQrScanning.set(false);
+    this.bulkQrPaused.set(true);
+  }
+
+  async resumeBulkQrScan(): Promise<void> {
+    if (!this.bulkQrPaused()) return;
+    await this.startBulkQrScan();
+  }
+
+  async stopBulkQrScan(): Promise<void> {
+    await this.bulkQrSession?.stop();
+    this.bulkQrSession = undefined;
+    this.bulkQrScanning.set(false);
+    this.bulkQrPaused.set(false);
+  }
+
   exitBulkManualCheckIn(): void {
+    void this.stopBulkQrScan();
     this.bulkMode.set(false);
     this.bulkReview.set(false);
     this.bulkResults.set([]);
@@ -249,6 +292,7 @@ export class SessionDetailPage implements OnDestroy {
   }
 
   reviewBulkSelection(): void {
+    if (this.bulkQrScanning()) void this.pauseBulkQrScan();
     if (this.queueItems().length) this.bulkReview.set(true);
   }
 
@@ -319,6 +363,69 @@ export class SessionDetailPage implements OnDestroy {
 
   private syncQueue(): void {
     this.queueItems.set(this.checkInQueue.items());
+  }
+
+  private handleBulkQrStartFailure(result: QrScanOutcome): void {
+    if (result.kind === 'permission_denied') this.scannerMessage.set('Camera access is required for continuous QR scanning.');
+    else if (result.kind === 'unsupported') this.scannerMessage.set('Continuous QR scanning is available in the native app.');
+    else this.scannerMessage.set('The continuous QR scanner is unavailable on this device.');
+  }
+
+  private async handleBulkQrOutcome(outcome: QrContinuousScanOutcome): Promise<void> {
+    if (outcome.kind === 'paused') {
+      this.bulkQrSession = undefined;
+      this.bulkQrScanning.set(false);
+      this.bulkQrPaused.set(true);
+      return;
+    }
+    if (outcome.kind === 'invalid_payload') {
+      await this.notifications.warning('This is not a valid Peniel membership QR code.', { id: 'bulk-qr-invalid' });
+      return;
+    }
+    if (outcome.kind !== 'scanned' || this.bulkQrResolutionInFlight() || !this.bulkQrScanning()) return;
+
+    const now = Date.now();
+    for (const [identifier, timestamp] of this.recentQrScans) {
+      if (now - timestamp > 3000) this.recentQrScans.delete(identifier);
+    }
+    const previousScan = this.recentQrScans.get(outcome.qrIdentifier);
+    this.recentQrScans.set(outcome.qrIdentifier, now);
+    if (previousScan !== undefined) {
+      await this.notifications.info('This QR code was already scanned.');
+      return;
+    }
+
+    const organizationId = this.workspace.selectedOrganizationId();
+    const branchId = this.workspace.selectedBranchId();
+    if (!organizationId || !branchId || !this.sessionId) return;
+    this.bulkQrResolutionInFlight.set(true);
+    try {
+      const authorized = await this.refreshScanAuthorization(this.requestVersion, organizationId, branchId);
+      if (!authorized || !this.bulkQrScanning()) return;
+      const preview = await firstValueFrom(this.api.previewQrCheckIn(organizationId, this.sessionId, outcome.qrIdentifier));
+      if (!this.bulkQrScanning()) return;
+      if (preview.attendance_status === 'already_checked_in') {
+        await this.notifications.warning('Already checked in. This member was not added to the queue.');
+        return;
+      }
+      if (this.checkInQueue.has(preview.member_id)) {
+        await this.notifications.info('This member is already queued.');
+        return;
+      }
+      this.checkInQueue.addQr({
+        id: preview.member_id,
+        membership_number: preview.membership_number,
+        first_name: preview.display_name,
+        last_name: '',
+      });
+      this.syncQueue();
+      await Haptics.vibrate({ duration: 30 }).catch(() => undefined);
+      await this.notifications.success(`${preview.display_name} added to the queue.`);
+    } catch (error: unknown) {
+      await this.handleQrPreviewError(error);
+    } finally {
+      this.bulkQrResolutionInFlight.set(false);
+    }
   }
 
   async scanQr(): Promise<void> {

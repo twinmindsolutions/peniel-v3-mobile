@@ -25,7 +25,7 @@ describe('SessionDetailPage', () => {
     previewQrCheckIn: vi.fn(() => of({ display_name: 'Member', membership_number: 'P-001', attendance_status: 'not_checked_in' })),
     recordQrCheckIn: vi.fn(() => of({ outcome: 'recorded' })),
   };
-  const qrScanner = { scan: vi.fn(), stop: vi.fn() };
+  const qrScanner = { scan: vi.fn(), startContinuousScan: vi.fn(), stop: vi.fn() };
   const notifications = { confirm: vi.fn(() => Promise.resolve(false)), warning: vi.fn(), error: vi.fn(), success: vi.fn() };
   const workspaceAuthorization = { refresh: vi.fn(() => Promise.resolve(true)) };
   const auth = { user: vi.fn(() => ({ id: 'user-1' })) };
@@ -116,6 +116,44 @@ describe('SessionDetailPage', () => {
     expect(page.queueItems().map((item) => item.memberId)).toEqual(['member-2']);
     await page.confirmBulkCheckIn();
     expect(api.recordBulkManualCheckIn).toHaveBeenCalledWith('org-1', 'session-1', [expect.objectContaining({ member_id: 'member-2' })]);
+  });
+
+  it('queues an authorized QR preview without recording attendance before confirmation', async () => {
+    let onOutcome: ((outcome: { kind: 'scanned'; qrIdentifier: string }) => void) | undefined;
+    qrScanner.startContinuousScan.mockImplementationOnce(async (callback: typeof onOutcome) => {
+      onOutcome = callback;
+      return { stop: vi.fn().mockResolvedValue(undefined) };
+    });
+    api.previewQrCheckIn.mockReturnValueOnce(of({
+      member_id: 'member-qr', display_name: 'Grace Hopper', membership_number: 'P-002',
+      session_id: 'session-1', attendance_status: 'not_checked_in',
+    }));
+    const page = fixture.componentInstance;
+    await page.startBulkQrScan();
+    await onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+
+    expect(page.queueItems()).toEqual([expect.objectContaining({ memberId: 'member-qr', source: 'qr' })]);
+    expect(api.recordBulkManualCheckIn).not.toHaveBeenCalled();
+  });
+
+  it('does not duplicate a member selected manually when their QR is scanned', async () => {
+    let onOutcome: ((outcome: { kind: 'scanned'; qrIdentifier: string }) => void) | undefined;
+    qrScanner.startContinuousScan.mockImplementationOnce(async (callback: typeof onOutcome) => {
+      onOutcome = callback;
+      return { stop: vi.fn().mockResolvedValue(undefined) };
+    });
+    api.previewQrCheckIn.mockReturnValueOnce(of({
+      member_id: 'member-1', display_name: 'Ada Lovelace', membership_number: 'P-001',
+      session_id: 'session-1', attendance_status: 'not_checked_in',
+    }));
+    const page = fixture.componentInstance;
+    page.startBulkManualCheckIn();
+    page.selectMember({ id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' });
+    await page.startBulkQrScan();
+    await onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+
+    expect(page.queueItems()).toHaveLength(1);
+    expect(page.queueItems()[0].source).toBe('manual');
   });
 
   it('removes a newly attended member from the queue when refreshed data is authoritative', () => {

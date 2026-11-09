@@ -1,7 +1,8 @@
 import { Capacitor } from '@capacitor/core';
 import { Injectable } from '@angular/core';
 import { App } from '@capacitor/app';
-import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
+import { BarcodeFormat, BarcodeScanner, type BarcodesScannedEvent } from '@capacitor-mlkit/barcode-scanning';
+import type { PluginListenerHandle } from '@capacitor/core';
 
 export type QrScanOutcome =
   | { readonly kind: 'scanned'; readonly qrIdentifier: string }
@@ -10,6 +11,12 @@ export type QrScanOutcome =
   | { readonly kind: 'permission_denied' }
   | { readonly kind: 'invalid_payload' }
   | { readonly kind: 'unavailable' };
+
+export type QrContinuousScanOutcome = QrScanOutcome | { readonly kind: 'paused' };
+
+export interface QrContinuousScanSession {
+  stop(): Promise<void>;
+}
 
 // Peniel QR identifiers are UUID-shaped opaque values. The version nibble is
 // intentionally not restricted: existing records include non-RFC UUID version
@@ -59,6 +66,53 @@ export class QrScannerService {
         await BarcodeScanner.stopScan().catch(() => undefined);
       }
     } catch {
+      return { kind: 'unavailable' };
+    }
+  }
+
+  async startContinuousScan(onOutcome: (outcome: QrContinuousScanOutcome) => void): Promise<QrContinuousScanSession | QrScanOutcome> {
+    if (!Capacitor.isNativePlatform()) return { kind: 'unsupported' };
+
+    try {
+      const support = await BarcodeScanner.isSupported();
+      if (!support.supported) return { kind: 'unavailable' };
+
+      const permission = await BarcodeScanner.checkPermissions();
+      const camera = permission.camera === 'prompt'
+        ? (await BarcodeScanner.requestPermissions()).camera
+        : permission.camera;
+      if (camera !== 'granted' && camera !== 'limited') return { kind: 'permission_denied' };
+
+      let closed = false;
+      let barcodeListener: PluginListenerHandle | undefined;
+      let appStateListener: PluginListenerHandle | undefined;
+      const removeScannerUi = () => document.querySelector('body')?.classList.remove('barcode-scanner-active');
+      const close = async (paused: boolean): Promise<void> => {
+        if (closed) return;
+        closed = true;
+        removeScannerUi();
+        await barcodeListener?.remove().catch(() => undefined);
+        await appStateListener?.remove().catch(() => undefined);
+        await BarcodeScanner.stopScan().catch(() => undefined);
+        if (paused) onOutcome({ kind: 'paused' });
+      };
+
+      document.querySelector('body')?.classList.add('barcode-scanner-active');
+      barcodeListener = await BarcodeScanner.addListener('barcodesScanned', (event: BarcodesScannedEvent) => {
+        if (closed) return;
+        const value = event.barcodes[0]?.rawValue?.trim();
+        if (!value) return;
+        onOutcome(UUID_PATTERN.test(value) ? { kind: 'scanned', qrIdentifier: value } : { kind: 'invalid_payload' });
+      });
+      appStateListener = await App.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) void close(true);
+      });
+      await BarcodeScanner.startScan({ formats: [BarcodeFormat.QrCode] });
+
+      return { stop: () => close(false) };
+    } catch {
+      document.querySelector('body')?.classList.remove('barcode-scanner-active');
+      await BarcodeScanner.stopScan().catch(() => undefined);
       return { kind: 'unavailable' };
     }
   }

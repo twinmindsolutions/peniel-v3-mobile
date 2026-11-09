@@ -26,6 +26,9 @@
           <app-button variant="ghost" expand="block" [disabled]="qrScanInFlight() || checkInInFlight() || bulkSubmitting()" (click)="startBulkManualCheckIn()">
             Bulk manual check-in
           </app-button>
+          <app-button variant="ghost" expand="block" [disabled]="qrScanInFlight() || checkInInFlight() || bulkSubmitting() || bulkQrScanning()" (click)="startBulkQrScan()">
+            Bulk QR scan
+          </app-button>
           @if (scannerMessage(); as message) {
             <p class="scanner-message" role="status">{{ message }}</p>
           }
@@ -94,6 +97,25 @@
               </div>
               <app-button variant="navy" [disabled]="!queueItems().length || bulkSubmitting()" (click)="reviewBulkSelection()">Review selection</app-button>
               <app-button variant="ghost" [disabled]="bulkSubmitting()" (click)="exitBulkManualCheckIn()">Cancel bulk check-in</app-button>
+            </div>
+          }
+          @if (bulkQrScanning() || bulkQrPaused()) {
+            <div class="barcode-scanner-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-qr-title">
+              <div class="barcode-scanner-panel">
+                <p class="eyebrow">Continuous QR check-in</p>
+                <h3 id="bulk-qr-title">Scan member cards</h3>
+                <p class="muted">Scan one card at a time. Attendance is not recorded until you review and confirm the queue.</p>
+                @if (bulkQrResolutionInFlight()) { <p class="scanner-message" role="status">Verifying member access...</p> }
+                <div class="barcode-scanner-actions">
+                  @if (bulkQrScanning()) {
+                    <app-button variant="secondary" (click)="pauseBulkQrScan()">Pause scanning</app-button>
+                  } @else {
+                    <app-button variant="secondary" (click)="resumeBulkQrScan()">Resume scanning</app-button>
+                  }
+                  <app-button variant="ghost" (click)="reviewBulkSelection()" [disabled]="!queueItems().length">Review queue ({{ queueItems().length }})</app-button>
+                  <app-button variant="ghost" (click)="stopBulkQrScan()">Close scanner</app-button>
+                </div>
+              </div>
             </div>
           }
           @if (bulkReview()) {

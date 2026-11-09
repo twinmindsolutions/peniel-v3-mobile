@@ -39,6 +39,14 @@ export class AttendanceCheckInQueueService {
   }
 
   addManual(member: AttendanceMemberLookup): void {
+    this.add(member, 'manual');
+  }
+
+  addQr(member: AttendanceMemberLookup): void {
+    this.add(member, 'qr');
+  }
+
+  private add(member: AttendanceMemberLookup, source: AttendanceCheckInSource): void {
     if (this.itemsByMember.has(member.id)) return;
     this.itemsByMember.set(member.id, {
       idempotencyKey: crypto.randomUUID(),
@@ -46,7 +54,7 @@ export class AttendanceCheckInQueueService {
       membershipNumber: member.membership_number,
       firstName: member.first_name,
       lastName: member.last_name,
-      source: 'manual',
+      source,
     });
   }
 
