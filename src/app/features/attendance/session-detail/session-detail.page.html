@@ -18,102 +18,158 @@
         <section class="check-in-card" aria-labelledby="check-in-title">
           <p class="eyebrow">Member check-in</p>
           <h2 id="check-in-title">Check in a member</h2>
-          <p class="muted">Scan a Peniel QR code or search by name or membership number. Every check-in requires confirmation.</p>
-          <app-button variant="secondary" expand="block" [loading]="qrScanInFlight()" [disabled]="qrScanInFlight() || checkInInFlight()" (click)="scanQr()">
-            <ion-icon slot="start" name="qr-code-outline" aria-hidden="true" />
-            Scan QR code
-          </app-button>
-          <app-button variant="ghost" expand="block" [disabled]="qrScanInFlight() || checkInInFlight() || bulkSubmitting()" (click)="startBulkManualCheckIn()">
-            Bulk manual check-in
-          </app-button>
-          <app-button variant="ghost" expand="block" [disabled]="qrScanInFlight() || checkInInFlight() || bulkSubmitting() || bulkQrScanning()" (click)="startBulkQrScan()">
-            Bulk QR scan
-          </app-button>
+          <p class="muted check-in-guidance">Select or scan members, then review and confirm before attendance is recorded.</p>
+          <div class="bulk-action-grid" aria-label="Attendance actions">
+            <button
+              type="button"
+              class="bulk-action-card"
+              [disabled]="qrScanInFlight() || checkInInFlight() || bulkSubmitting() || bulkQrScanning()"
+              (click)="startBulkQrScan()"
+            >
+              <ion-icon name="qr-code-outline" aria-hidden="true" />
+              <span class="bulk-action-card__title">Scan QR Codes</span>
+              <span class="bulk-action-card__description">Scan several member cards continuously.</span>
+            </button>
+            <button
+              type="button"
+              class="bulk-action-card"
+              [disabled]="qrScanInFlight() || checkInInFlight() || bulkSubmitting() || bulkQrScanning()"
+              (click)="startBulkManualCheckIn()"
+            >
+              <ion-icon name="people-outline" aria-hidden="true" />
+              <span class="bulk-action-card__title">Manual Check-in</span>
+              <span class="bulk-action-card__description">Select multiple members from the authorized list.</span>
+            </button>
+          </div>
           @if (scannerMessage(); as message) {
             <p class="scanner-message" role="status">{{ message }}</p>
           }
-          <p class="manual-label">Or use manual member search</p>
-          <ion-searchbar
-            [value]="searchTerm()"
-            placeholder="Search members"
-            aria-label="Search eligible members"
-            [debounce]="0"
-            (ionInput)="onSearch($event)"
-          />
-          @if (memberLoading() && !members().length) {
-            <app-feedback-state kind="loading" title="Searching members" message="Checking eligible members for this session." />
-          } @else if (memberError() && !members().length) {
-            <app-feedback-state title="Member search unavailable" message="We could not load eligible members. Please try again." (retry)="searchMembers()" />
-          } @else if (!members().length) {
-            <p class="muted search-empty">No eligible members found.</p>
-          } @else {
-            <ion-list class="member-list" lines="none">
-              @for (member of members(); track member.id) {
-              <ion-item
-                button
-                detail="true"
-                [class.member-selected]="bulkMode() && isQueued(member.id)"
-                [class.member-attended]="!!member.already_attended"
-                [disabled]="checkInInFlight() || qrScanInFlight() || bulkSubmitting() || !!member.already_attended"
-                (click)="selectMember(member)"
-                [attr.aria-label]="bulkMode() ? memberSelectionLabel(member) : null"
-                [attr.aria-pressed]="bulkMode() && !member.already_attended ? isQueued(member.id) : null"
-              >
-                  @if (bulkMode()) {
-                    <ion-icon
-                      slot="start"
-                      class="member-selection-icon"
-                      [class.member-selection-icon--attended]="!!member.already_attended"
-                      [name]="member.already_attended || isQueued(member.id) ? 'checkmark-circle' : 'ellipse-outline'"
-                      aria-hidden="true"
-                    />
-                  }
-                  <ion-label>
-                    <h3>{{ member.first_name }} {{ member.last_name }}</h3>
-                    <p>
-                      {{ member.membership_number }}
-                      @if (member.already_attended) { <span class="member-status member-status--attended">Present</span> }
-                    </p>
-                  </ion-label>
-                </ion-item>
-              }
-            </ion-list>
-            <ion-infinite-scroll
-              threshold="100px"
-              [disabled]="memberNextPage() === null || memberLoading()"
-              (ionInfinite)="loadMoreMembers($event)"
+          @if (!bulkMode()) {
+            <button
+              type="button"
+              class="individual-checkin-toggle"
+              [attr.aria-expanded]="individualCheckInExpanded()"
+              aria-controls="individual-checkin-panel"
+              (click)="toggleIndividualCheckIn()"
             >
-              <ion-infinite-scroll-content loadingText="Loading more members..." />
-            </ion-infinite-scroll>
-            @if (memberLoading()) { <p class="muted search-loading" role="status">Loading more eligible members...</p> }
-            @if (memberError()) { <p class="search-error" role="alert">More members could not be loaded. Try again.</p> }
+              <span>
+                <strong>Individual check-in</strong>
+                <small>Scan one card or find one member.</small>
+              </span>
+              <span class="individual-checkin-toggle__chevron" aria-hidden="true">{{ individualCheckInExpanded() ? '−' : '+' }}</span>
+            </button>
+          }
+          @if (bulkMode() || individualCheckInExpanded()) {
+            <div id="individual-checkin-panel" class="individual-checkin-panel">
+              @if (!bulkMode()) {
+                <app-button variant="secondary" expand="block" [loading]="qrScanInFlight()" [disabled]="qrScanInFlight() || checkInInFlight()" (click)="scanQr()">
+                  <ion-icon slot="start" name="qr-code-outline" aria-hidden="true" />
+                  Scan one QR code
+                </app-button>
+                <p class="manual-label">Find one member manually</p>
+              } @else {
+                <p class="manual-label">Select members for manual check-in</p>
+              }
+              <ion-searchbar
+                [value]="searchTerm()"
+                placeholder="Search members"
+                aria-label="Search eligible members"
+                [debounce]="0"
+                (ionInput)="onSearch($event)"
+              />
+              @if (memberLoading() && !members().length) {
+                <app-feedback-state kind="loading" title="Searching members" message="Checking eligible members for this session." />
+              } @else if (memberError() && !members().length) {
+                <app-feedback-state title="Member search unavailable" message="We could not load eligible members. Please try again." (retry)="searchMembers()" />
+              } @else if (!members().length) {
+                <p class="muted search-empty">No eligible members found.</p>
+              } @else {
+                <ion-list class="member-list" lines="none">
+                  @for (member of members(); track member.id) {
+                  <ion-item
+                    button
+                    detail="true"
+                    [class.member-selected]="bulkMode() && isQueued(member.id)"
+                    [class.member-attended]="!!member.already_attended"
+                    [disabled]="checkInInFlight() || qrScanInFlight() || bulkSubmitting() || !!member.already_attended"
+                    (click)="selectMember(member)"
+                    [attr.aria-label]="bulkMode() ? memberSelectionLabel(member) : null"
+                    [attr.aria-pressed]="bulkMode() && !member.already_attended ? isQueued(member.id) : null"
+                  >
+                      @if (bulkMode()) {
+                        <ion-icon
+                          slot="start"
+                          class="member-selection-icon"
+                          [class.member-selection-icon--attended]="!!member.already_attended"
+                          [name]="member.already_attended || isQueued(member.id) ? 'checkmark-circle' : 'ellipse-outline'"
+                          aria-hidden="true"
+                        />
+                      }
+                      <ion-label>
+                        <h3>{{ member.first_name }} {{ member.last_name }}</h3>
+                        <p>
+                          {{ member.membership_number }}
+                          @if (member.already_attended) { <span class="member-status member-status--attended">Present</span> }
+                        </p>
+                      </ion-label>
+                    </ion-item>
+                  }
+                </ion-list>
+                <ion-infinite-scroll
+                  threshold="100px"
+                  [disabled]="memberNextPage() === null || memberLoading()"
+                  (ionInfinite)="loadMoreMembers($event)"
+                >
+                  <ion-infinite-scroll-content loadingText="Loading more members..." />
+                </ion-infinite-scroll>
+                @if (memberLoading()) { <p class="muted search-loading" role="status">Loading more eligible members...</p> }
+                @if (memberError()) { <p class="search-error" role="alert">More members could not be loaded. Try again.</p> }
+              }
+            </div>
           }
           @if (bulkMode()) {
             <div class="bulk-selection-bar" aria-live="polite">
               <div class="bulk-selection-count">
-                <span class="eyebrow">Bulk selection</span>
+                <span class="eyebrow">Selected members</span>
                 <strong>{{ queueItems().length }}</strong>
                 <span>member{{ queueItems().length === 1 ? '' : 's' }} selected</span>
               </div>
               <app-button variant="navy" [disabled]="!queueItems().length || bulkSubmitting()" (click)="reviewBulkSelection()">Review selection</app-button>
-              <app-button variant="ghost" [disabled]="bulkSubmitting()" (click)="exitBulkManualCheckIn()">Cancel bulk check-in</app-button>
+              <app-button variant="ghost" [disabled]="bulkSubmitting()" (click)="exitBulkManualCheckIn()">Cancel manual check-in</app-button>
             </div>
           }
           @if (bulkQrScanning() || bulkQrPaused()) {
-            <div class="barcode-scanner-modal" role="dialog" aria-modal="true" aria-labelledby="bulk-qr-title">
-              <div class="barcode-scanner-panel">
-                <p class="eyebrow">Continuous QR check-in</p>
-                <h3 id="bulk-qr-title">Scan member cards</h3>
-                <p class="muted">Scan one card at a time. Attendance is not recorded until you review and confirm the queue.</p>
-                @if (bulkQrResolutionInFlight()) { <p class="scanner-message" role="status">Verifying member access...</p> }
-                <div class="barcode-scanner-actions">
+            <div class="barcode-scanner-modal" role="region" aria-label="Continuous QR scanner">
+              <div class="scanner-topbar">
+                <div class="scanner-title">
+                  <span class="scanner-live-dot" aria-hidden="true"></span>
+                  <span><strong>QR Check-in</strong><small>Scan member cards</small></span>
+                </div>
+                <button type="button" class="scanner-close" aria-label="Close QR scanner" (click)="stopBulkQrScan()">×</button>
+              </div>
+              <div class="barcode-scanner-frame" aria-hidden="true">
+                <span class="scanner-corner scanner-corner--top-left"></span>
+                <span class="scanner-corner scanner-corner--top-right"></span>
+                <span class="scanner-corner scanner-corner--bottom-left"></span>
+                <span class="scanner-corner scanner-corner--bottom-right"></span>
+              </div>
+              @if (bulkQrResolutionInFlight()) {
+                <div class="scanner-feedback" role="status">Verifying member access...</div>
+              } @else if (scannerMessage(); as message) {
+                <div class="scanner-feedback" role="status">{{ message }}</div>
+              }
+              <div class="scanner-bottom-bar">
+                <div class="scanner-count" aria-live="polite">
+                  <strong>{{ queueItems().length }}</strong>
+                  <span>selected</span>
+                </div>
+                <div class="scanner-controls">
                   @if (bulkQrScanning()) {
-                    <app-button variant="secondary" (click)="pauseBulkQrScan()">Pause scanning</app-button>
+                    <button type="button" class="scanner-control" (click)="pauseBulkQrScan()">Pause</button>
                   } @else {
-                    <app-button variant="secondary" (click)="resumeBulkQrScan()">Resume scanning</app-button>
+                    <button type="button" class="scanner-control" (click)="resumeBulkQrScan()">Resume</button>
                   }
-                  <app-button variant="ghost" (click)="reviewBulkSelection()" [disabled]="!queueItems().length">Review queue ({{ queueItems().length }})</app-button>
-                  <app-button variant="ghost" (click)="stopBulkQrScan()">Close scanner</app-button>
+                  <button type="button" class="scanner-control scanner-control--primary" (click)="reviewBulkSelection()" [disabled]="!queueItems().length">Review selection</button>
                 </div>
               </div>
             </div>

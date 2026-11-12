@@ -1,8 +1,9 @@
 import { Capacitor } from '@capacitor/core';
 import { Injectable } from '@angular/core';
 import { App } from '@capacitor/app';
-import { BarcodeFormat, BarcodeScanner, type BarcodesScannedEvent } from '@capacitor-mlkit/barcode-scanning';
+import { BarcodeFormat, BarcodeScanner, type BarcodesScannedEvent, type ScanErrorEvent } from '@capacitor-mlkit/barcode-scanning';
 import type { PluginListenerHandle } from '@capacitor/core';
+import { environment } from '../../../environments/environment';
 
 export type QrScanOutcome =
   | { readonly kind: 'scanned'; readonly qrIdentifier: string }
@@ -23,10 +24,33 @@ export interface QrContinuousScanSession {
 // values, while the variant nibble and canonical UUID syntax remain strict.
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+export interface NativeQrBarcodeValue {
+  readonly rawValue?: unknown;
+  readonly displayValue?: unknown;
+}
+
+/**
+ * Returns only Peniel's opaque QR identity. Membership numbers, URLs and
+ * arbitrary barcode text are intentionally rejected before the API call.
+ */
+export function parsePenielQrPayload(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return UUID_PATTERN.test(normalized) ? normalized : null;
+}
+
+/** Native plugin versions expose the decoded value under either field. */
+export function extractPenielQrPayload(barcode: NativeQrBarcodeValue | undefined): string | null {
+  return parsePenielQrPayload(barcode?.rawValue) ?? parsePenielQrPayload(barcode?.displayValue);
+}
+
 @Injectable({ providedIn: 'root' })
 export class QrScannerService {
   async stop(): Promise<void> {
-    if (Capacitor.isNativePlatform()) await BarcodeScanner.stopScan().catch(() => undefined);
+    if (Capacitor.isNativePlatform()) {
+      this.scannerDiagnostic('scanner_stopped');
+      await BarcodeScanner.stopScan().catch(() => undefined);
+    }
   }
 
   async scan(): Promise<QrScanOutcome> {
@@ -56,9 +80,11 @@ export class QrScannerService {
       try {
         const result = await BarcodeScanner.scan({ formats: [BarcodeFormat.QrCode], autoZoom: true });
         active = false;
-        const value = result.barcodes[0]?.rawValue?.trim();
-        if (!value) return { kind: 'cancelled' };
-        if (!UUID_PATTERN.test(value)) return { kind: 'invalid_payload' };
+        const barcode = result.barcodes[0];
+        const hasValue = typeof barcode?.rawValue === 'string' || typeof barcode?.displayValue === 'string';
+        if (!hasValue) return { kind: 'cancelled' };
+        const value = extractPenielQrPayload(barcode);
+        if (!value) return { kind: 'invalid_payload' };
         return { kind: 'scanned', qrIdentifier: value };
       } finally {
         active = false;
@@ -74,6 +100,7 @@ export class QrScannerService {
     if (!Capacitor.isNativePlatform()) return { kind: 'unsupported' };
 
     try {
+      this.scannerDiagnostic('scanner_start_requested');
       const support = await BarcodeScanner.isSupported();
       if (!support.supported) return { kind: 'unavailable' };
 
@@ -85,6 +112,7 @@ export class QrScannerService {
 
       let closed = false;
       let barcodeListener: PluginListenerHandle | undefined;
+      let scanErrorListener: PluginListenerHandle | undefined;
       let appStateListener: PluginListenerHandle | undefined;
       const removeScannerUi = () => document.querySelector('body')?.classList.remove('barcode-scanner-active');
       const close = async (paused: boolean): Promise<void> => {
@@ -92,28 +120,46 @@ export class QrScannerService {
         closed = true;
         removeScannerUi();
         await barcodeListener?.remove().catch(() => undefined);
+        await scanErrorListener?.remove().catch(() => undefined);
         await appStateListener?.remove().catch(() => undefined);
         await BarcodeScanner.stopScan().catch(() => undefined);
+        this.scannerDiagnostic(paused ? 'scanner_paused' : 'scanner_stopped');
         if (paused) onOutcome({ kind: 'paused' });
       };
 
       document.querySelector('body')?.classList.add('barcode-scanner-active');
       barcodeListener = await BarcodeScanner.addListener('barcodesScanned', (event: BarcodesScannedEvent) => {
         if (closed) return;
-        const value = event.barcodes[0]?.rawValue?.trim();
-        if (!value) return;
-        onOutcome(UUID_PATTERN.test(value) ? { kind: 'scanned', qrIdentifier: value } : { kind: 'invalid_payload' });
+        this.scannerDiagnostic('qr_decode_received', { barcodeCount: event.barcodes.length });
+        const value = extractPenielQrPayload(event.barcodes[0]);
+        if (!value) {
+          if (event.barcodes[0]) onOutcome({ kind: 'invalid_payload' });
+          return;
+        }
+        onOutcome({ kind: 'scanned', qrIdentifier: value });
+      });
+      this.scannerDiagnostic('scanner_listener_registered');
+      scanErrorListener = await BarcodeScanner.addListener('scanError', (_event: ScanErrorEvent) => {
+        if (closed) return;
+        this.scannerDiagnostic('scanner_error', { category: 'native_scan_error' });
+        void close(false).then(() => onOutcome({ kind: 'unavailable' }));
       });
       appStateListener = await App.addListener('appStateChange', ({ isActive }) => {
         if (!isActive) void close(true);
       });
       await BarcodeScanner.startScan({ formats: [BarcodeFormat.QrCode] });
+      this.scannerDiagnostic('scanner_native_started');
 
       return { stop: () => close(false) };
-    } catch {
+    } catch (error: unknown) {
+      this.scannerDiagnostic('scanner_start_failed', { category: error instanceof Error ? 'native_start_error' : 'unknown_error' });
       document.querySelector('body')?.classList.remove('barcode-scanner-active');
       await BarcodeScanner.stopScan().catch(() => undefined);
       return { kind: 'unavailable' };
     }
+  }
+
+  private scannerDiagnostic(event: string, details: Record<string, unknown> = {}): void {
+    if (!environment.production) console.debug('[qr-scanner]', event, details);
   }
 }

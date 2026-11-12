@@ -1,8 +1,10 @@
 import { Injectable, inject } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { App } from '@capacitor/app';
 import { AuthService } from '../auth/auth.service';
 import { WorkspaceStateService } from './workspace-state.service';
+import { environment } from '../../../environments/environment';
 
 export type WorkspaceRefreshReason = 'app-resume' | 'workspace-entry' | 'authorization-failure';
 
@@ -34,7 +36,14 @@ export class WorkspaceAuthorizationService {
         }
         return true;
       })
-      .catch(() => false)
+      .catch((error: unknown) => {
+        if (!environment.production) {
+          console.debug('[workspace-auth]', 'refresh-failed', {
+            status: error instanceof HttpErrorResponse ? error.status : 0,
+          });
+        }
+        return false;
+      })
       .finally(() => {
         if (this.refreshInFlight === refresh) this.refreshInFlight = undefined;
       });

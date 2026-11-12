@@ -15,7 +15,26 @@ import { WorkspaceAuthorizationService } from '../../../core/workspace/workspace
 
 describe('SessionDetailPage', () => {
   let fixture: ComponentFixture<SessionDetailPage>;
-  const workspace = { selectedOrganizationId: vi.fn(() => 'org-1'), selectedBranchId: vi.fn(() => 'branch-1') };
+  const workspace = {
+    selectedOrganizationId: vi.fn(() => 'org-1'),
+    selectedBranchId: vi.fn(() => 'branch-1'),
+    attendanceCapabilities: vi.fn(() => ({
+      organization_id: 'org-1',
+      can_view_attendance: true,
+      can_create_ad_hoc_session: true,
+      can_manage_attendance_sessions: false,
+      can_manage_recurring_schedules: false,
+      can_generate_annual_sessions: false,
+      can_manage_attendance_settings: false,
+      can_manage_service_types: false,
+      can_manage_organization_service_types: false,
+      view_branch_ids: ['branch-1'],
+      session_management_branch_ids: [],
+      recurring_schedule_management_branch_ids: [],
+      service_type_management_branch_ids: [],
+      ad_hoc_scopes: [{ branch_id: 'branch-1', group_scope: 'selected_groups', group_ids: ['group-2', 'group-1'] }],
+    })),
+  };
   const attendance = { resolved: vi.fn(() => true), canViewAttendance: vi.fn(() => true), canRecordAttendance: vi.fn(() => true) };
   const api = {
     getSession: vi.fn(() => of(null)),
@@ -56,6 +75,15 @@ describe('SessionDetailPage', () => {
     expect(fixture.componentInstance.sessionId).toBe('session-1');
   });
 
+  it('keeps individual check-in collapsed until explicitly opened', () => {
+    const page = fixture.componentInstance;
+    expect(page.individualCheckInExpanded()).toBe(false);
+    page.toggleIndividualCheckIn();
+    expect(page.individualCheckInExpanded()).toBe(true);
+    page.toggleIndividualCheckIn();
+    expect(page.individualCheckInExpanded()).toBe(false);
+  });
+
   it('loads member-search pages, deduplicates overlaps, and exposes the next page', async () => {
     api.searchMembers
       .mockReturnValueOnce(of({
@@ -92,6 +120,19 @@ describe('SessionDetailPage', () => {
     expect(api.recordBulkManualCheckIn).toHaveBeenCalledOnce();
   });
 
+  it('does not open scanner review with an empty queue and opens it after selection', () => {
+    const page = fixture.componentInstance;
+    page.startBulkManualCheckIn();
+    page.reviewBulkSelection();
+    expect(page.bulkReview()).toBe(false);
+
+    page.selectMember({ id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' });
+    page.bulkQrScanning.set(true);
+    page.reviewBulkSelection();
+    expect(page.bulkReview()).toBe(true);
+    expect(page.bulkQrPaused()).toBe(true);
+  });
+
   it('keeps the bulk selection count when the visible search page changes', async () => {
     const page = fixture.componentInstance;
     const member = { id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' };
@@ -102,7 +143,7 @@ describe('SessionDetailPage', () => {
 
     expect(page.queueItems()).toHaveLength(1);
     expect(page.isQueued('member-1')).toBe(true);
-    expect(page.memberSelectionLabel(member)).toBe('Remove Ada Lovelace from bulk check-in selection');
+    expect(page.memberSelectionLabel(member)).toBe('Remove Ada Lovelace from manual check-in selection');
   });
 
   it('locks existing attendance records and submits only new selections', async () => {
@@ -130,6 +171,7 @@ describe('SessionDetailPage', () => {
     }));
     const page = fixture.componentInstance;
     await page.startBulkQrScan();
+    expect(page.bulkQrScanning()).toBe(true);
     await onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
 
     expect(page.queueItems()).toEqual([expect.objectContaining({ memberId: 'member-qr', source: 'qr' })]);
@@ -154,6 +196,27 @@ describe('SessionDetailPage', () => {
 
     expect(page.queueItems()).toHaveLength(1);
     expect(page.queueItems()[0].source).toBe('manual');
+  });
+
+  it('accepts a decode callback emitted before native scanner startup resolves', async () => {
+    let resolveStart!: (session: { stop: () => Promise<void> }) => void;
+    let onOutcome: ((outcome: { kind: 'scanned'; qrIdentifier: string }) => void) | undefined;
+    qrScanner.startContinuousScan.mockImplementationOnce((callback: typeof onOutcome) => {
+      onOutcome = callback;
+      return new Promise(resolve => { resolveStart = resolve; });
+    });
+    api.previewQrCheckIn.mockReturnValueOnce(of({
+      member_id: 'member-early', display_name: 'Early Decode', membership_number: 'P-003',
+      session_id: 'session-1', attendance_status: 'not_checked_in',
+    }));
+    const page = fixture.componentInstance;
+    const start = page.startBulkQrScan();
+    onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    resolveStart({ stop: vi.fn().mockResolvedValue(undefined) });
+    await start;
+    await Promise.resolve();
+
+    expect(page.queueItems()).toEqual([expect.objectContaining({ memberId: 'member-early', source: 'qr' })]);
   });
 
   it('removes a newly attended member from the queue when refreshed data is authoritative', () => {
@@ -216,6 +279,50 @@ describe('SessionDetailPage', () => {
     expect(api.previewQrCheckIn).not.toHaveBeenCalled();
     expect(notifications.error).toHaveBeenCalledWith('Your attendance authorization changed. Reopen the session before scanning again.');
     expect(api.recordQrCheckIn).not.toHaveBeenCalled();
+  });
+
+  it('does not misclassify a failed authorization refresh as a permission change', async () => {
+    qrScanner.scan.mockResolvedValueOnce({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    workspaceAuthorization.refresh.mockResolvedValueOnce(false);
+
+    await fixture.componentInstance.scanQr();
+
+    expect(api.previewQrCheckIn).not.toHaveBeenCalled();
+    expect(notifications.error).toHaveBeenCalledWith('We could not refresh your attendance authorization. Check your connection and try again.');
+    expect(notifications.error).not.toHaveBeenCalledWith('Your attendance authorization changed. Reopen the session before scanning again.');
+  });
+
+  it('accepts equivalent refreshed group scope when the API returns IDs in a different order', async () => {
+    qrScanner.scan.mockResolvedValueOnce({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    notifications.confirm.mockResolvedValueOnce(false);
+    workspaceAuthorization.refresh.mockImplementationOnce(async () => {
+      workspace.attendanceCapabilities.mockReturnValueOnce({
+        ...workspace.attendanceCapabilities(),
+        ad_hoc_scopes: [{ branch_id: 'branch-1', group_scope: 'selected_groups', group_ids: ['group-1', 'group-2'] }],
+      });
+      return true;
+    });
+
+    await fixture.componentInstance.scanQr();
+
+    expect(api.previewQrCheckIn).toHaveBeenCalledOnce();
+    expect(notifications.error).not.toHaveBeenCalledWith('Your attendance authorization changed. Reopen the session before scanning again.');
+  });
+
+  it('blocks QR preview when the refreshed effective scope is genuinely different', async () => {
+    qrScanner.scan.mockResolvedValueOnce({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    workspaceAuthorization.refresh.mockImplementationOnce(async () => {
+      workspace.attendanceCapabilities.mockReturnValueOnce({
+        ...workspace.attendanceCapabilities(),
+        ad_hoc_scopes: [{ branch_id: 'branch-1', group_scope: 'selected_groups', group_ids: ['group-3'] }],
+      });
+      return true;
+    });
+
+    await fixture.componentInstance.scanQr();
+
+    expect(api.previewQrCheckIn).not.toHaveBeenCalled();
+    expect(notifications.error).toHaveBeenCalledWith('Your attendance authorization changed. Reopen the session before scanning again.');
   });
 
   it('distinguishes a locally malformed QR payload', async () => {
