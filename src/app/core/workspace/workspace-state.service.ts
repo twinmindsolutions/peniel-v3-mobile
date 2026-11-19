@@ -10,6 +10,8 @@ export interface WorkspaceErrorState {
   readonly message: string;
 }
 
+export type WorkspaceAuthorizationState = 'unknown' | 'loading' | 'allowed' | 'denied';
+
 @Injectable({ providedIn: 'root' })
 export class WorkspaceStateService {
   private readonly api = inject(WorkspaceApiService);
@@ -26,6 +28,7 @@ export class WorkspaceStateService {
   private readonly loadingSignal = signal(false);
   private readonly errorSignal = signal<WorkspaceErrorState | null>(null);
   private readonly authorizationVerifiedSignal = signal(false);
+  private readonly authorizationStateSignal = signal<WorkspaceAuthorizationState>('unknown');
 
   readonly organizations = this.organizationsSignal.asReadonly();
   readonly branches = this.branchesSignal.asReadonly();
@@ -35,6 +38,7 @@ export class WorkspaceStateService {
   readonly loading = this.loadingSignal.asReadonly();
   readonly error = this.errorSignal.asReadonly();
   readonly authorizationVerified = this.authorizationVerifiedSignal.asReadonly();
+  readonly authorizationState = this.authorizationStateSignal.asReadonly();
 
   readonly selectedOrganization = computed(() => {
     const id = this.selectedOrganizationIdSignal();
@@ -98,6 +102,7 @@ export class WorkspaceStateService {
     if (!organization) throw new Error('The selected organization is not authorized.');
 
     this.requestVersion += 1;
+    this.authorizationStateSignal.set('loading');
     this.errorSignal.set(null);
     this.selectedOrganizationIdSignal.set(organization.id);
     this.clearBranchState();
@@ -196,6 +201,7 @@ export class WorkspaceStateService {
     this.errorSignal.set(null);
     this.loadingSignal.set(false);
     this.authorizationVerifiedSignal.set(false);
+    this.authorizationStateSignal.set('unknown');
     this.activeUserId = null;
     this.resolvedUserId = null;
     this.resolutionPromise = undefined;
@@ -203,26 +209,33 @@ export class WorkspaceStateService {
 
   private async resolveWorkspace(userId: string): Promise<void> {
     this.resolvedUserId = null;
+    this.authorizationStateSignal.set('loading');
     this.authorizationVerifiedSignal.set(false);
-    const savedOrganizationId = await this.readPreference(userId, 'organization');
-    const savedBranchId = await this.readPreference(userId, 'branch');
-    if (this.activeUserId !== userId) return;
+    try {
+      const savedOrganizationId = await this.readPreference(userId, 'organization');
+      const savedBranchId = await this.readPreference(userId, 'branch');
+      if (this.activeUserId !== userId) return;
 
-    await this.loadAuthorizedOrganizations();
-    if (this.activeUserId !== userId) return;
+      await this.loadAuthorizedOrganizations();
+      if (this.activeUserId !== userId) return;
 
-    if (savedOrganizationId && this.organizationsSignal().some((item) => item.id === savedOrganizationId)) {
-      if (this.selectedOrganizationIdSignal() !== savedOrganizationId) {
-        await this.selectOrganization(savedOrganizationId);
+      if (savedOrganizationId && this.organizationsSignal().some((item) => item.id === savedOrganizationId)) {
+        if (this.selectedOrganizationIdSignal() !== savedOrganizationId) {
+          await this.selectOrganization(savedOrganizationId);
+        }
       }
-    }
-    if (this.activeUserId !== userId) return;
+      if (this.activeUserId !== userId) return;
 
-    if (savedBranchId && this.branchesSignal().some((item) => item.id === savedBranchId)) {
-      this.selectBranch(savedBranchId);
+      if (savedBranchId && this.branchesSignal().some((item) => item.id === savedBranchId)) {
+        this.selectBranch(savedBranchId);
+      }
+      this.resolvedUserId = userId;
+      this.authorizationVerifiedSignal.set(true);
+      this.authorizationStateSignal.set('allowed');
+    } catch (error: unknown) {
+      if (this.activeUserId === userId) this.authorizationStateSignal.set('denied');
+      throw error;
     }
-    this.resolvedUserId = userId;
-    this.authorizationVerifiedSignal.set(true);
   }
 
   private async readPreference(userId: string, scope: 'organization' | 'branch'): Promise<string | null> {

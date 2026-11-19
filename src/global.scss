@@ -42,107 +42,6 @@ body {
   font-family: var(--peniel-font-family);
 }
 
-body.barcode-scanner-active {
-  visibility: hidden;
-  --background: transparent;
-  --ion-background-color: transparent;
-}
-
-body.barcode-scanner-active ion-app,
-body.barcode-scanner-active ion-content,
-body.barcode-scanner-active ion-page {
-  --background: transparent !important;
-  --ion-background-color: transparent !important;
-  background: transparent !important;
-}
-
-.barcode-scanner-modal {
-  visibility: visible;
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
-  pointer-events: none;
-  background: transparent;
-  color: #fff;
-}
-
-.barcode-scanner-frame {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: min(74vw, 300px);
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.scanner-corner {
-  position: absolute;
-  width: 34px;
-  height: 34px;
-  border-color: #fff;
-  border-style: solid;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .6));
-}
-.scanner-corner--top-left { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 14px 0 0; }
-.scanner-corner--top-right { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 14px 0 0; }
-.scanner-corner--bottom-left { bottom: 0; left: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 14px; }
-.scanner-corner--bottom-right { right: 0; bottom: 0; border-width: 0 3px 3px 0; border-radius: 0 0 14px; }
-
-.scanner-topbar,
-.scanner-bottom-bar,
-.scanner-feedback {
-  position: relative;
-  z-index: 1;
-  pointer-events: auto;
-  background: rgba(8, 24, 47, .78);
-  border: 1px solid rgba(255, 255, 255, .2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .2);
-  backdrop-filter: blur(10px);
-}
-
-.scanner-topbar {
-  align-items: center;
-  align-self: stretch;
-  border-radius: 16px;
-  display: flex;
-  justify-content: space-between;
-  min-height: 52px;
-  padding: 8px 10px 8px 14px;
-}
-.scanner-title { align-items: center; display: flex; gap: 10px; }
-.scanner-title strong, .scanner-title small { display: block; }
-.scanner-title strong { font-size: var(--peniel-type-body); }
-.scanner-title small { color: rgba(255, 255, 255, .75); font-size: var(--peniel-type-caption); margin-top: 2px; }
-.scanner-live-dot { background: #57d39b; border-radius: 50%; box-shadow: 0 0 0 4px rgba(87, 211, 155, .18); height: 9px; width: 9px; }
-.scanner-close {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 50%;
-  color: #fff;
-  display: flex;
-  font-size: 1.8rem;
-  height: 44px;
-  justify-content: center;
-  line-height: 1;
-  width: 44px;
-}
-.scanner-close:focus-visible, .scanner-control:focus-visible { box-shadow: 0 0 0 3px rgba(255, 255, 255, .65); outline: none; }
-.scanner-feedback { align-self: center; border-radius: 999px; color: #fff; font-size: var(--peniel-type-supporting); margin: auto 0; max-width: min(90vw, 340px); padding: 8px 14px; text-align: center; }
-.scanner-bottom-bar { align-items: center; align-self: stretch; border-radius: 16px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; padding: 10px 12px; }
-.scanner-count { align-items: baseline; display: flex; gap: 7px; }
-.scanner-count strong { font-size: 1.5rem; }
-.scanner-count span { color: rgba(255, 255, 255, .78); font-size: var(--peniel-type-caption); }
-.scanner-controls { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
-.scanner-control { background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .42); border-radius: 10px; color: #fff; font-size: var(--peniel-type-button); font-weight: 700; min-height: 44px; padding: 0 14px; }
-.scanner-control--primary { background: var(--peniel-primary); border-color: var(--peniel-primary); }
-.scanner-control:disabled { cursor: not-allowed; opacity: .48; }
-
 html,
 body,
 ion-app,
@@ -187,4 +86,8 @@ ion-alert.peniel-alert {
 
 .application-shell app-page-shell .page-shell {
   padding-bottom: calc(var(--peniel-space-8) + 72px + env(safe-area-inset-bottom));
+}
+
+@media (max-width: 380px) {
+  .scanner-status { display: none; }
 }

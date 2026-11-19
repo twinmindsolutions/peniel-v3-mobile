@@ -23,6 +23,7 @@ export class AttendanceCheckInQueueService {
   private itemsByMember = new Map<string, AttendanceCheckInQueueItem>();
 
   setContext(userId: string, organizationId: string, branchId: string, sessionId: string): void {
+    if (!userId || !organizationId || !branchId || !sessionId) return;
     const key = `${userId}:${organizationId}:${branchId}:${sessionId}`;
     if (key !== this.contextKey) {
       this.contextKey = key;

@@ -2,6 +2,7 @@ import { computed, Injectable, signal, inject } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { WorkspaceStateService } from '../workspace/workspace-state.service';
+import { AttendanceCheckInQueueService } from '../attendance/attendance-check-in-queue.service';
 import { AuthApiService } from './auth-api.service';
 import {
   MobileTokenResponse,
@@ -20,6 +21,7 @@ export class AuthService {
   private readonly api = inject(AuthApiService);
   private readonly credentialStore = inject(SecureCredentialStore);
   private readonly workspace = inject(WorkspaceStateService);
+  private readonly checkInQueue = inject(AttendanceCheckInQueueService);
   private readonly statusSignal = signal<AuthenticationStatus>('initializing');
   private readonly userSignal = signal<MobileUser | null>(null);
   private accessToken: string | null = null;
@@ -175,6 +177,7 @@ export class AuthService {
     this.userSignal.set(null);
     this.statusSignal.set('unauthenticated');
     this.workspace.clear();
+    this.checkInQueue.clear();
     try {
       await this.credentialStore.clear();
     } catch {

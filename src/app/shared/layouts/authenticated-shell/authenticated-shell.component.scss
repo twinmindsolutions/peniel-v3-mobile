@@ -1,4 +1,9 @@
-.application-shell { background: var(--ion-background-color); min-height: 100%; padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+.application-shell {
+  --peniel-bottom-nav-clearance: calc(72px + env(safe-area-inset-bottom));
+  background: var(--ion-background-color);
+  min-height: 100%;
+  padding-bottom: var(--peniel-bottom-nav-clearance);
+}
 .app-header {
   align-items: center;
   background: var(--peniel-ink);

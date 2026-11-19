@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
-import { extractPenielQrPayload, parsePenielQrPayload, QrScannerService } from './qr-scanner.service';
+import { extractPenielQrPayload, parsePenielQrPayload, QrScannerService, selectPenielQrPayload } from './qr-scanner.service';
 
 describe('QrScannerService', () => {
   afterEach(() => vi.restoreAllMocks());
@@ -12,8 +12,37 @@ describe('QrScannerService', () => {
     expect(parsePenielQrPayload('https://example.com/member/9bf65ada-3822-d24a-8a78-608af3fdc819')).toBeNull();
   });
 
+  it('accepts uppercase UUID hex and uppercase RFC-4122 variant digits', () => {
+    expect(parsePenielQrPayload('9BF65ADA-3822-D24A-B78A-608AF3FDC819')).toBe('9BF65ADA-3822-D24A-B78A-608AF3FDC819');
+  });
+
+  it('rejects non-hex characters even when the UUID segment lengths look correct', () => {
+    expect(parsePenielQrPayload('9BF65ADA-3822-D24A-B78Z-608AF3FDC819')).toBeNull();
+  });
+
   it('accepts the native wrapper when the decoded UUID is exposed as displayValue', () => {
     expect(extractPenielQrPayload({ displayValue: '9bf65ada-3822-d24a-8a78-608af3fdc819' })).toBe('9bf65ada-3822-d24a-8a78-608af3fdc819');
+  });
+
+  it('validates rawValue and displayValue independently', () => {
+    expect(extractPenielQrPayload({
+      rawValue: 'not-a-uuid',
+      displayValue: '9BF65ADA-3822-D24A-B78A-608AF3FDC819',
+    })).toBe('9BF65ADA-3822-D24A-B78A-608AF3FDC819');
+    expect(extractPenielQrPayload({
+      rawValue: '9BF65ADA-3822-D24A-B78A-608AF3FDC819',
+      displayValue: 'not-a-uuid',
+    })).toBe('9BF65ADA-3822-D24A-B78A-608AF3FDC819');
+  });
+
+  it('selects a valid QR candidate ahead of unrelated barcode results', () => {
+    expect(selectPenielQrPayload([
+      { rawValue: '9bf65ada-3822-424a-8a78-608af3fdc819', format: 'CODE_128' },
+      { displayValue: '9bf65ada-3822-424a-8a78-608af3fdc819', format: 'QR_CODE' },
+    ])).toBe('9bf65ada-3822-424a-8a78-608af3fdc819');
+    expect(selectPenielQrPayload([
+      { rawValue: '9bf65ada-3822-424a-8a78-608af3fdc819', format: 'CODE_128' },
+    ])).toBeNull();
   });
 
   it('does not invoke the scanner in browser development', async () => {
@@ -56,6 +85,43 @@ describe('QrScannerService', () => {
     });
   });
 
+  it('handles multiple returned barcodes deterministically', async () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+    vi.spyOn(BarcodeScanner, 'isSupported').mockResolvedValue({ supported: true });
+    vi.spyOn(BarcodeScanner, 'isGoogleBarcodeScannerModuleAvailable').mockResolvedValue({ available: true });
+    vi.spyOn(BarcodeScanner, 'scan').mockResolvedValue({
+      barcodes: [
+        { rawValue: '9bf65ada-3822-424a-8a78-608af3fdc819', format: 'CODE_128' } as never,
+        { rawValue: '9bf65ada-3822-424a-8a78-608af3fdc819', format: 'QR_CODE' } as never,
+      ],
+    });
+    vi.spyOn(BarcodeScanner, 'stopScan').mockResolvedValue();
+    vi.spyOn(App, 'addListener').mockResolvedValue({ remove: vi.fn() });
+
+    await expect(new QrScannerService().scan()).resolves.toEqual({
+      kind: 'scanned', qrIdentifier: '9bf65ada-3822-424a-8a78-608af3fdc819',
+    });
+  });
+
+  it('records safe shape metadata without logging the decoded value', async () => {
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('ios');
+    vi.spyOn(BarcodeScanner, 'isSupported').mockResolvedValue({ supported: true });
+    vi.spyOn(BarcodeScanner, 'checkPermissions').mockResolvedValue({ camera: 'granted' });
+    vi.spyOn(BarcodeScanner, 'scan').mockResolvedValue({
+      barcodes: [{ rawValue: '  9bf65ada-3822-424a-8a78-608af3fdc819  ', displayValue: '9bf65ada-3822-424a-8a78-608af3fdc819' } as never],
+    });
+    vi.spyOn(BarcodeScanner, 'stopScan').mockResolvedValue();
+    vi.spyOn(App, 'addListener').mockResolvedValue({ remove: vi.fn() });
+
+    await new QrScannerService().scan();
+
+    expect(debug).toHaveBeenCalledWith('[peniel-qr]', expect.stringContaining('"raw_length":40'));
+    expect(debug).toHaveBeenCalledWith('[peniel-qr]', expect.not.stringContaining('9bf65ada-3822-424a-8a78-608af3fdc819'));
+  });
+
   it('accepts existing Peniel QR identifiers with a non-standard version nibble', async () => {
     vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
     vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('ios');
@@ -81,7 +147,12 @@ describe('QrScannerService', () => {
     vi.spyOn(BarcodeScanner, 'stopScan').mockResolvedValue();
     vi.spyOn(App, 'addListener').mockResolvedValue({ remove: vi.fn() });
 
-    await expect(new QrScannerService().scan()).resolves.toEqual({ kind: 'invalid_payload' });
+    const service = new QrScannerService();
+    await expect(service.scan()).resolves.toEqual({ kind: 'invalid_payload' });
+    expect(service.singleScanDiagnostics()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ event: 'single_scan_result_received', summary: expect.stringContaining('raw 1') }),
+      expect.objectContaining({ event: 'single_scan_payload_invalid', summary: expect.not.stringContaining('not-a-peniel-qr') }),
+    ]));
   });
 
   it.each([
@@ -100,97 +171,83 @@ describe('QrScannerService', () => {
     await expect(new QrScannerService().scan()).resolves.toEqual({ kind: 'invalid_payload' });
   });
 
-  it('starts an event-based continuous scan and stops its listeners cleanly', async () => {
+  it('reopens the proven Google scanner only after each result is processed', async () => {
     vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
     vi.spyOn(BarcodeScanner, 'isSupported').mockResolvedValue({ supported: true });
-    vi.spyOn(BarcodeScanner, 'checkPermissions').mockResolvedValue({ camera: 'granted' });
-    vi.spyOn(BarcodeScanner, 'startScan').mockResolvedValue();
+    vi.spyOn(BarcodeScanner, 'isGoogleBarcodeScannerModuleAvailable').mockResolvedValue({ available: true });
     vi.spyOn(BarcodeScanner, 'stopScan').mockResolvedValue();
-    const remove = vi.fn().mockResolvedValue();
-    vi.spyOn(App, 'addListener').mockResolvedValue({ remove } as never);
-    let listener: ((event: { barcodes: Array<{ rawValue?: string }> }) => void) | undefined;
-    vi.spyOn(BarcodeScanner, 'addListener').mockImplementation(async (event, callback) => {
-      if (event === 'barcodesScanned') listener = callback as typeof listener;
-      return { remove } as never;
-    });
-
+    vi.spyOn(App, 'addListener').mockResolvedValue({ remove: vi.fn().mockResolvedValue() } as never);
+    const scan = vi.spyOn(BarcodeScanner, 'scan');
+    scan
+      .mockResolvedValueOnce({ barcodes: [{ rawValue: '9bf65ada-3822-424a-8a78-608af3fdc819' } as never] })
+      .mockResolvedValueOnce({ barcodes: [{ rawValue: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } as never] });
     const outcomes: QrScanOutcome[] = [];
-    const session = await new QrScannerService().startContinuousScan((outcome) => {
+    const service = new QrScannerService();
+    const session = await service.startContinuousScan(async (outcome) => {
       if (outcome.kind !== 'paused') outcomes.push(outcome);
     });
 
     expect('stop' in session).toBe(true);
-    listener?.({ barcodes: [{ rawValue: '9bf65ada-3822-424a-8a78-608af3fdc819' }] });
-    expect(outcomes).toEqual([{ kind: 'scanned', qrIdentifier: '9bf65ada-3822-424a-8a78-608af3fdc819' }]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(scan).toHaveBeenCalledTimes(2);
+    expect(outcomes).toEqual([
+      { kind: 'scanned', qrIdentifier: '9bf65ada-3822-424a-8a78-608af3fdc819' },
+      { kind: 'scanned', qrIdentifier: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+    ]);
+    expect(service.continuousScanDiagnostics()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ event: 'multi_scan_started', attemptId: 1 }),
+      expect.objectContaining({ event: 'native_scan_invoked', attemptId: 1 }),
+      expect.objectContaining({ event: 'next_scan_scheduled', attemptId: 1 }),
+      expect.objectContaining({ event: 'next_scan_invoked', attemptId: 1 }),
+    ]));
     if ('stop' in session) await session.stop();
-    expect(remove).toHaveBeenCalledTimes(3);
     expect(BarcodeScanner.stopScan).toHaveBeenCalled();
   });
 
-  it('passes continuous displayValue results through the same parser', async () => {
+  it('continues after an invalid payload without changing the shared parser', async () => {
     vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
     vi.spyOn(BarcodeScanner, 'isSupported').mockResolvedValue({ supported: true });
-    vi.spyOn(BarcodeScanner, 'checkPermissions').mockResolvedValue({ camera: 'granted' });
-    vi.spyOn(BarcodeScanner, 'startScan').mockResolvedValue();
+    vi.spyOn(BarcodeScanner, 'isGoogleBarcodeScannerModuleAvailable').mockResolvedValue({ available: true });
     vi.spyOn(BarcodeScanner, 'stopScan').mockResolvedValue();
     vi.spyOn(App, 'addListener').mockResolvedValue({ remove: vi.fn().mockResolvedValue() } as never);
-    let listener: ((event: { barcodes: Array<{ displayValue?: string }> }) => void) | undefined;
-    vi.spyOn(BarcodeScanner, 'addListener').mockImplementation(async (event, callback) => {
-      if (event === 'barcodesScanned') listener = callback as typeof listener;
-      return { remove: vi.fn().mockResolvedValue() } as never;
-    });
+    const scan = vi.spyOn(BarcodeScanner, 'scan');
+    scan
+      .mockResolvedValueOnce({ barcodes: [{ rawValue: 'not-a-peniel-qr' } as never] })
+      .mockResolvedValueOnce({ barcodes: [{ displayValue: '9bf65ada-3822-424a-8a78-608af3fdc819' } as never] });
     const outcomes: QrScanOutcome[] = [];
-    const session = await new QrScannerService().startContinuousScan(outcome => {
+    const session = await new QrScannerService().startContinuousScan(async outcome => {
       if (outcome.kind !== 'paused') outcomes.push(outcome);
     });
 
-    listener?.({ barcodes: [{ displayValue: '9bf65ada-3822-424a-8a78-608af3fdc819' }] });
-    expect(outcomes).toEqual([{ kind: 'scanned', qrIdentifier: '9bf65ada-3822-424a-8a78-608af3fdc819' }]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(scan).toHaveBeenCalledTimes(2);
+    expect(outcomes).toEqual([
+      { kind: 'invalid_payload' },
+      { kind: 'scanned', qrIdentifier: '9bf65ada-3822-424a-8a78-608af3fdc819' },
+    ]);
     if ('stop' in session) await session.stop();
   });
 
-  it('registers the barcode listener before starting native scanning', async () => {
+  it('does not start a second native scan while the first result is being handled', async () => {
     vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
     vi.spyOn(BarcodeScanner, 'isSupported').mockResolvedValue({ supported: true });
-    vi.spyOn(BarcodeScanner, 'checkPermissions').mockResolvedValue({ camera: 'granted' });
+    vi.spyOn(BarcodeScanner, 'isGoogleBarcodeScannerModuleAvailable').mockResolvedValue({ available: true });
     vi.spyOn(BarcodeScanner, 'stopScan').mockResolvedValue();
-    const order: string[] = [];
-    vi.spyOn(BarcodeScanner, 'addListener').mockImplementation(async () => {
-      order.push('listener');
-      return { remove: vi.fn().mockResolvedValue() } as never;
-    });
     vi.spyOn(App, 'addListener').mockResolvedValue({ remove: vi.fn().mockResolvedValue() } as never);
-    vi.spyOn(BarcodeScanner, 'startScan').mockImplementation(async () => {
-      order.push('native-start');
-    });
-
-    await new QrScannerService().startContinuousScan(() => undefined);
-
-    expect(order).toEqual(['listener', 'listener', 'native-start']);
-  });
-
-  it('surfaces a native scan error and releases the continuous scanner', async () => {
-    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
-    vi.spyOn(BarcodeScanner, 'isSupported').mockResolvedValue({ supported: true });
-    vi.spyOn(BarcodeScanner, 'checkPermissions').mockResolvedValue({ camera: 'granted' });
-    vi.spyOn(BarcodeScanner, 'startScan').mockResolvedValue();
-    const stopScan = vi.spyOn(BarcodeScanner, 'stopScan').mockResolvedValue();
-    let scanError: (() => void) | undefined;
-    vi.spyOn(BarcodeScanner, 'addListener').mockImplementation(async (event, callback) => {
-      if (event === 'scanError') scanError = callback as () => void;
-      return { remove: vi.fn().mockResolvedValue() } as never;
-    });
-    vi.spyOn(App, 'addListener').mockResolvedValue({ remove: vi.fn().mockResolvedValue() } as never);
-    const outcomes: QrScanOutcome[] = [];
-    await new QrScannerService().startContinuousScan(outcome => {
-      if (outcome.kind !== 'paused') outcomes.push(outcome);
-    });
-
-    scanError?.();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(outcomes).toEqual([{ kind: 'unavailable' }]);
-    expect(stopScan).toHaveBeenCalled();
+    let release!: () => void;
+    const handling = new Promise<void>(resolve => { release = resolve; });
+    const scan = vi.spyOn(BarcodeScanner, 'scan');
+    scan.mockResolvedValueOnce({ barcodes: [{ rawValue: '9bf65ada-3822-424a-8a78-608af3fdc819' } as never] });
+    scan.mockResolvedValueOnce({ barcodes: [{ rawValue: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } as never] });
+    const session = await new QrScannerService().startContinuousScan(async () => handling);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(scan).toHaveBeenCalledTimes(1);
+    release();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(scan).toHaveBeenCalledTimes(2);
+    if ('stop' in session) await session.stop();
   });
 });

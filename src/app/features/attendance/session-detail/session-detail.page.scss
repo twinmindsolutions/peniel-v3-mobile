@@ -56,6 +56,10 @@ h3 { color: var(--peniel-ink); font-size: var(--peniel-type-body); margin: 0; } 
 .check-in-card ion-searchbar { --background: var(--peniel-surface-muted); --border-radius: var(--peniel-radius-md); margin: var(--peniel-space-4) 0; padding: 0; }
 .manual-label { color: var(--peniel-muted); font-size: var(--peniel-type-caption); font-weight: 700; margin: var(--peniel-space-4) 0 var(--peniel-space-2); }
 .scanner-message { background: var(--peniel-surface-muted); border-radius: var(--peniel-radius-md); color: var(--peniel-muted); font-size: var(--peniel-type-supporting); margin: var(--peniel-space-3) 0 0; padding: var(--peniel-space-3); }
+.qr-diagnostics { background: var(--peniel-surface-muted); border: 1px solid var(--peniel-border); border-radius: var(--peniel-radius-md); color: var(--peniel-muted); font-size: var(--peniel-type-caption); margin-top: var(--peniel-space-3); }
+.qr-diagnostics summary { cursor: pointer; font-weight: 700; padding: var(--peniel-space-2) var(--peniel-space-3); }
+.qr-diagnostics__entries { max-height: 10rem; overflow: auto; padding: 0 var(--peniel-space-3) var(--peniel-space-2); }
+.qr-diagnostics__entries p { margin: var(--peniel-space-2) 0 0; }
 .qr-preview { border: 1px solid var(--peniel-primary); border-radius: var(--peniel-radius-md); display: grid; gap: 4px; margin-top: var(--peniel-space-3); padding: var(--peniel-space-3); }
 .qr-preview strong { color: var(--peniel-ink); }
 .qr-preview span { color: var(--peniel-muted); font-size: var(--peniel-type-supporting); }
@@ -74,6 +78,8 @@ h3 { color: var(--peniel-ink); font-size: var(--peniel-type-body); margin: 0; } 
 .bulk-selection-count { align-items: baseline; color: var(--peniel-muted); display: flex; flex-wrap: wrap; gap: var(--peniel-space-2); }
 .bulk-selection-count .eyebrow { flex-basis: 100%; margin-bottom: 0; }
 .bulk-selection-count strong { color: var(--peniel-primary); font-size: 1.65rem; line-height: 1; }
+.bulk-selection-status { color: var(--peniel-muted); font-size: var(--peniel-type-supporting); margin: 0; }
+.bulk-selection-actions { display: flex; flex-wrap: wrap; gap: var(--peniel-space-2); }
 .bulk-review h3 { margin: 0; }
 .bulk-results { background: var(--peniel-surface-muted); border-radius: var(--peniel-radius-md); padding: var(--peniel-space-3); }
 .bulk-results p { color: var(--peniel-muted); margin: 4px 0; }

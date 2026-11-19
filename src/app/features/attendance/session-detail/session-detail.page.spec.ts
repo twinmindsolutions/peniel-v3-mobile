@@ -18,6 +18,8 @@ describe('SessionDetailPage', () => {
   const workspace = {
     selectedOrganizationId: vi.fn(() => 'org-1'),
     selectedBranchId: vi.fn(() => 'branch-1'),
+    authorizationState: vi.fn(() => 'allowed' as 'unknown' | 'loading' | 'allowed' | 'denied'),
+    authorizationVerified: vi.fn(() => true),
     attendanceCapabilities: vi.fn(() => ({
       organization_id: 'org-1',
       can_view_attendance: true,
@@ -53,6 +55,8 @@ describe('SessionDetailPage', () => {
     vi.clearAllMocks();
     workspace.selectedOrganizationId.mockReturnValue('org-1');
     workspace.selectedBranchId.mockReturnValue('branch-1');
+    workspace.authorizationState.mockReturnValue('allowed');
+    workspace.authorizationVerified.mockReturnValue(true);
     attendance.canViewAttendance.mockReturnValue(true);
     attendance.canRecordAttendance.mockReturnValue(true);
     await TestBed.configureTestingModule({
@@ -115,22 +119,36 @@ describe('SessionDetailPage', () => {
     page.selectMember(member);
     expect(page.queueItems()).toHaveLength(1);
     expect(api.recordBulkManualCheckIn).not.toHaveBeenCalled();
-    page.reviewBulkSelection();
+    await page.reviewBulkSelection();
     await page.confirmBulkCheckIn();
     expect(api.recordBulkManualCheckIn).toHaveBeenCalledOnce();
   });
 
-  it('does not open scanner review with an empty queue and opens it after selection', () => {
+  it('does not open scanner review with an empty queue and opens it after selection', async () => {
     const page = fixture.componentInstance;
     page.startBulkManualCheckIn();
-    page.reviewBulkSelection();
+    await page.reviewBulkSelection();
     expect(page.bulkReview()).toBe(false);
 
     page.selectMember({ id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' });
     page.bulkQrScanning.set(true);
-    page.reviewBulkSelection();
+    await page.reviewBulkSelection();
     expect(page.bulkReview()).toBe(true);
     expect(page.bulkQrPaused()).toBe(true);
+  });
+
+  it('clears the queue only after explicit discard confirmation', async () => {
+    const page = fixture.componentInstance;
+    page.startBulkManualCheckIn();
+    page.selectMember({ id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' });
+
+    notifications.confirm.mockResolvedValueOnce(false);
+    await page.discardBulkSelection();
+    expect(page.queueItems()).toHaveLength(1);
+
+    notifications.confirm.mockResolvedValueOnce(true);
+    await page.discardBulkSelection();
+    expect(page.queueItems()).toHaveLength(0);
   });
 
   it('keeps the bulk selection count when the visible search page changes', async () => {
@@ -144,6 +162,18 @@ describe('SessionDetailPage', () => {
     expect(page.queueItems()).toHaveLength(1);
     expect(page.isQueued('member-1')).toBe(true);
     expect(page.memberSelectionLabel(member)).toBe('Remove Ada Lovelace from manual check-in selection');
+  });
+
+  it('preserves the QR queue when the session reloads for the same workspace context', async () => {
+    api.getSession.mockReturnValue(of({ id: 'session-1', branch: { id: 'branch-1' } }));
+    api.getAttendanceSummary.mockReturnValue(of({}));
+    const page = fixture.componentInstance;
+    page.startBulkManualCheckIn();
+    page.selectMember({ id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' });
+
+    await page.load();
+
+    expect(page.queueItems()).toEqual([expect.objectContaining({ memberId: 'member-1' })]);
   });
 
   it('locks existing attendance records and submits only new selections', async () => {
@@ -175,7 +205,43 @@ describe('SessionDetailPage', () => {
     await onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
 
     expect(page.queueItems()).toEqual([expect.objectContaining({ memberId: 'member-qr', source: 'qr' })]);
+    expect(page.qrFeedback()).toEqual({ kind: 'success', message: 'Member added. 1 selected.' });
     expect(api.recordBulkManualCheckIn).not.toHaveBeenCalled();
+  });
+
+  it('preserves all queued QR members when the native scanner is cancelled', async () => {
+    let onOutcome: ((outcome: { kind: 'scanned'; qrIdentifier: string }) => void) | undefined;
+    qrScanner.startContinuousScan.mockImplementationOnce(async (callback: typeof onOutcome) => {
+      onOutcome = callback;
+      return { stop: vi.fn().mockResolvedValue(undefined) };
+    });
+    api.previewQrCheckIn.mockImplementation((_, __, qrIdentifier) => of({
+      member_id: `member-${qrIdentifier.slice(-1)}`,
+      display_name: 'Queued Member',
+      membership_number: `P-${qrIdentifier.slice(-1)}`,
+      session_id: 'session-1',
+      attendance_status: 'not_checked_in',
+    }));
+    const page = fixture.componentInstance;
+    await page.startBulkQrScan();
+    for (const suffix of ['1', '2', '3', '4']) {
+      await onOutcome?.({ kind: 'scanned', qrIdentifier: `11111111-1111-4111-8111-11111111111${suffix}` });
+    }
+
+    await page.stopBulkQrScan();
+
+    expect(page.queueItems()).toHaveLength(4);
+    expect(api.recordBulkManualCheckIn).not.toHaveBeenCalled();
+  });
+
+  it('clears queued members only through explicit bulk discard', () => {
+    const page = fixture.componentInstance;
+    page.startBulkManualCheckIn();
+    page.selectMember({ id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' });
+
+    page.exitBulkManualCheckIn();
+
+    expect(page.queueItems()).toHaveLength(0);
   });
 
   it('does not duplicate a member selected manually when their QR is scanned', async () => {
@@ -289,6 +355,32 @@ describe('SessionDetailPage', () => {
 
     expect(api.previewQrCheckIn).not.toHaveBeenCalled();
     expect(notifications.error).toHaveBeenCalledWith('We could not refresh your attendance authorization. Check your connection and try again.');
+    expect(notifications.error).not.toHaveBeenCalledWith('Your attendance authorization changed. Reopen the session before scanning again.');
+  });
+
+  it('keeps a pending multi-scan alive while authorization refresh is loading', async () => {
+    let onOutcome: ((outcome: { kind: 'scanned'; qrIdentifier: string }) => void) | undefined;
+    qrScanner.startContinuousScan.mockImplementationOnce(async (callback: typeof onOutcome) => {
+      onOutcome = callback;
+      return { stop: vi.fn().mockResolvedValue(undefined) };
+    });
+    workspaceAuthorization.refresh.mockImplementationOnce(async () => {
+      attendance.canRecordAttendance.mockReturnValue(false);
+      workspace.authorizationState.mockReturnValue('loading');
+      await Promise.resolve();
+      attendance.canRecordAttendance.mockReturnValue(true);
+      workspace.authorizationState.mockReturnValue('allowed');
+      return true;
+    });
+    api.previewQrCheckIn.mockReturnValueOnce(of({
+      member_id: 'member-qr', display_name: 'Grace Hopper', membership_number: 'P-002',
+      session_id: 'session-1', attendance_status: 'not_checked_in',
+    }));
+    const page = fixture.componentInstance;
+    await page.startBulkQrScan();
+    await onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+
+    expect(page.queueItems()).toEqual([expect.objectContaining({ memberId: 'member-qr', source: 'qr' })]);
     expect(notifications.error).not.toHaveBeenCalledWith('Your attendance authorization changed. Reopen the session before scanning again.');
   });
 

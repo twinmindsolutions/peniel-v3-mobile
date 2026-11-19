@@ -33,6 +33,7 @@ export class WorkspaceAuthorizationService {
       .then(async () => {
         if (!this.workspace.usableWorkspaceResolved()) {
           await this.router.navigateByUrl('/app/workspace');
+          return false;
         }
         return true;
       })

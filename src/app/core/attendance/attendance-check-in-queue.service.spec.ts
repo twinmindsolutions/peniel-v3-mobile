@@ -22,4 +22,14 @@ describe('AttendanceCheckInQueueService', () => {
     queue.remove('member-1');
     expect(queue.items().map((item) => item.memberId)).toEqual(['member-2']);
   });
+
+  it('keeps selections available when a refresh briefly has no workspace context', () => {
+    const queue = new AttendanceCheckInQueueService();
+    queue.setContext('user-1', 'org-1', 'branch-1', 'session-1');
+    queue.addManual(member);
+
+    queue.setContext('user-1', '', '', 'session-1');
+
+    expect(queue.items()).toHaveLength(1);
+  });
 });

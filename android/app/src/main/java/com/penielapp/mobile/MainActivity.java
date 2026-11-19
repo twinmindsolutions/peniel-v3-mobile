@@ -2,4 +2,8 @@ package com.penielapp.mobile;
 
 import com.getcapacitor.BridgeActivity;
 
-public class MainActivity extends BridgeActivity {}
+public class MainActivity extends BridgeActivity {
+    public MainActivity() {
+        registerPlugin(PenielDiagnosticsPlugin.class);
+    }
+}

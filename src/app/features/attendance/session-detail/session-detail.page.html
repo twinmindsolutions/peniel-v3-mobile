@@ -1,11 +1,11 @@
 <ion-header><ion-toolbar><ion-title>Session details</ion-title></ion-toolbar></ion-header>
 <ion-content>
   <app-page-shell eyebrow="Attendance" title="Session details" description="Registered-member attendance for this authorized session.">
-    @if (!attendance.resolved()) {
+    @if (!attendance.resolved() && !(bulkQrScanning() || bulkQrPaused())) {
       <app-feedback-state kind="loading" title="Verifying access" message="Checking your attendance permissions." />
-    } @else if (!attendance.canViewAttendance()) {
+    } @else if (!attendance.canViewAttendance() && !(bulkQrScanning() || bulkQrPaused())) {
       <app-feedback-state title="Attendance is unavailable" message="Your current workspace does not include attendance viewing access." />
-    } @else if (loading()) {
+    } @else if (loading() && !(bulkQrScanning() || bulkQrPaused())) {
       <app-feedback-state kind="loading" title="Loading session" message="Retrieving session details." />
     } @else if (error() || !session()) {
       <app-feedback-state title="Session unavailable" message="This session is unavailable in your current workspace." (retry)="load()" />
@@ -14,10 +14,10 @@
         <div class="session-heading"><div><p class="eyebrow">{{ session()!.status }}</p><h2 id="session-title">{{ session()!.service_type_name_snapshot || session()!.service_type.name }}</h2></div><span class="status">{{ session()!.status }}</span></div>
         <dl><div><dt>Date</dt><dd>{{ formatDate(session()!.local_occurrence_date) }}</dd></div><div><dt>Time</dt><dd>{{ formatTime(session()!.scheduled_start) }} – {{ formatTime(session()!.scheduled_end) }}</dd></div><div><dt>Branch</dt><dd>{{ session()!.branch.name }}</dd></div><div><dt>Group</dt><dd>{{ session()!.group?.name || 'All members' }}</dd></div></dl>
       </section>
-      @if (attendance.canRecordAttendance() && session()!.status === 'scheduled' && !recordingUnavailableMessage()) {
+      @if ((attendance.canRecordAttendance() || bulkQrScanning() || bulkQrPaused()) && session()!.status === 'scheduled' && !recordingUnavailableMessage()) {
         <section class="check-in-card" aria-labelledby="check-in-title">
           <p class="eyebrow">Member check-in</p>
-          <h2 id="check-in-title">Check in a member</h2>
+          <h2 id="check-in-title">{{ bulkQrScanning() || bulkQrPaused() ? 'QR Check-in' : 'Check in a member' }}</h2>
           <p class="muted check-in-guidance">Select or scan members, then review and confirm before attendance is recorded.</p>
           <div class="bulk-action-grid" aria-label="Attendance actions">
             <button
@@ -43,6 +43,26 @@
           </div>
           @if (scannerMessage(); as message) {
             <p class="scanner-message" role="status">{{ message }}</p>
+          }
+          @if (showQrDiagnostics && singleQrDiagnostics().length) {
+            <details class="qr-diagnostics">
+              <summary>QR diagnostics (staging/development only)</summary>
+              <div class="qr-diagnostics__entries" role="log" aria-live="polite">
+                @for (entry of singleQrDiagnostics(); track $index) {
+                  <p><strong>Attempt {{ entry.attempt }}</strong> · {{ entry.event }} — {{ entry.summary }}</p>
+                }
+              </div>
+            </details>
+          }
+          @if (showQrDiagnostics && continuousQrDiagnostics().length) {
+            <details class="qr-diagnostics">
+              <summary>Multi-scan lifecycle (staging/development only)</summary>
+              <div class="qr-diagnostics__entries" role="log" aria-live="polite">
+                @for (entry of continuousQrDiagnostics(); track $index) {
+                  <p><strong>#{{ entry.sequence }}</strong> · attempt {{ entry.attemptId }} · {{ entry.event }} — {{ entry.summary }}</p>
+                }
+              </div>
+            </details>
           }
           @if (!bulkMode()) {
             <button
@@ -134,43 +154,22 @@
                 <strong>{{ queueItems().length }}</strong>
                 <span>member{{ queueItems().length === 1 ? '' : 's' }} selected</span>
               </div>
-              <app-button variant="navy" [disabled]="!queueItems().length || bulkSubmitting()" (click)="reviewBulkSelection()">Review selection</app-button>
-              <app-button variant="ghost" [disabled]="bulkSubmitting()" (click)="exitBulkManualCheckIn()">Cancel manual check-in</app-button>
-            </div>
-          }
-          @if (bulkQrScanning() || bulkQrPaused()) {
-            <div class="barcode-scanner-modal" role="region" aria-label="Continuous QR scanner">
-              <div class="scanner-topbar">
-                <div class="scanner-title">
-                  <span class="scanner-live-dot" aria-hidden="true"></span>
-                  <span><strong>QR Check-in</strong><small>Scan member cards</small></span>
-                </div>
-                <button type="button" class="scanner-close" aria-label="Close QR scanner" (click)="stopBulkQrScan()">×</button>
-              </div>
-              <div class="barcode-scanner-frame" aria-hidden="true">
-                <span class="scanner-corner scanner-corner--top-left"></span>
-                <span class="scanner-corner scanner-corner--top-right"></span>
-                <span class="scanner-corner scanner-corner--bottom-left"></span>
-                <span class="scanner-corner scanner-corner--bottom-right"></span>
-              </div>
-              @if (bulkQrResolutionInFlight()) {
-                <div class="scanner-feedback" role="status">Verifying member access...</div>
-              } @else if (scannerMessage(); as message) {
-                <div class="scanner-feedback" role="status">{{ message }}</div>
+              @if (bulkQrScanning() || bulkQrPaused()) {
+                <p class="bulk-selection-status" role="status">
+                  @if (scanAuthorizationRefreshing()) { Checking access... }
+                  @else if (bulkQrResolutionInFlight()) { Processing scan... }
+                  @else if (qrFeedback(); as feedback) { {{ feedback.message }} }
+                  @else if (scannerMessage(); as message) { {{ message }} }
+                  @else if (bulkQrPaused()) { Scanner paused. }
+                  @else { Scanning... }
+                </p>
               }
-              <div class="scanner-bottom-bar">
-                <div class="scanner-count" aria-live="polite">
-                  <strong>{{ queueItems().length }}</strong>
-                  <span>selected</span>
-                </div>
-                <div class="scanner-controls">
-                  @if (bulkQrScanning()) {
-                    <button type="button" class="scanner-control" (click)="pauseBulkQrScan()">Pause</button>
-                  } @else {
-                    <button type="button" class="scanner-control" (click)="resumeBulkQrScan()">Resume</button>
-                  }
-                  <button type="button" class="scanner-control scanner-control--primary" (click)="reviewBulkSelection()" [disabled]="!queueItems().length">Review selection</button>
-                </div>
+              <div class="bulk-selection-actions">
+                <app-button variant="navy" [disabled]="!queueItems().length || bulkSubmitting()" (click)="reviewBulkSelection()">Review selection</app-button>
+                @if (bulkQrPaused()) {
+                  <app-button variant="ghost" [disabled]="bulkSubmitting()" (click)="resumeBulkQrScan()">Scan more</app-button>
+                }
+                <app-button variant="ghost" [disabled]="bulkSubmitting()" (click)="discardBulkSelection()">Discard selection</app-button>
               </div>
             </div>
           }
