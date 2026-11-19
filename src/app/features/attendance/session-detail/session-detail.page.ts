@@ -99,6 +99,7 @@ export class SessionDetailPage implements OnDestroy {
   private readonly recentQrScans = new Map<string, number>();
   private scanAuthorizationSnapshot: ScanAuthorizationSnapshot | null = null;
   private qrFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
+  private bulkCheckInAttempt = 0;
 
   constructor() {
     addIcons({ checkmarkCircle, ellipseOutline, peopleOutline, qrCodeOutline });
@@ -415,18 +416,22 @@ export class SessionDetailPage implements OnDestroy {
     const selected = this.queueItems();
     if (!organizationId || !branchId || !selected.length || this.bulkSubmitting() || !this.attendance.canRecordAttendance()) return;
     const version = this.requestVersion;
+    const correlationId = `bulk-checkin-${++this.bulkCheckInAttempt}`;
+    this.recordCheckInDiagnostic('checkin_confirm_started', correlationId, 'bulk check-in confirmation started', selected.length);
     this.bulkSubmittedItems.set(selected);
     this.bulkSubmitting.set(true);
     try {
+      this.recordCheckInDiagnostic('checkin_request_sent', correlationId, 'bulk check-in request sent', selected.length);
       const response = await firstValueFrom(this.api.recordBulkManualCheckIn(
         organizationId,
         this.sessionId,
         selected.map((item) => ({
           idempotency_key: item.idempotencyKey,
           member_id: item.memberId,
-          method: item.source,
+          method: 'manual' as const,
         })),
       ));
+      this.recordCheckInDiagnostic('checkin_response_received', correlationId, 'bulk check-in response received', selected.length, 200);
       if (version !== this.requestVersion || this.workspace.selectedOrganizationId() !== organizationId || this.workspace.selectedBranchId() !== branchId) return;
       this.bulkResults.set(response.results);
       for (const result of response.results) {
@@ -442,8 +447,19 @@ export class SessionDetailPage implements OnDestroy {
       if (failed) await this.notifications.warning(`${failed} member${failed === 1 ? '' : 's'} could not be checked in. Review the results and retry if appropriate.`);
       this.bulkReview.set(true);
       await this.refreshSummary();
-    } catch {
-      await this.notifications.error('The manual check-in could not be completed. Your selection was preserved so you can retry.');
+      this.recordCheckInDiagnostic('checkin_confirm_completed', correlationId, 'bulk check-in confirmation completed', selected.length, 200);
+    } catch (error: unknown) {
+      const status = error instanceof HttpErrorResponse ? error.status : 0;
+      const category = this.checkInErrorCategory(status);
+      this.recordCheckInDiagnostic('checkin_response_failed', correlationId, `bulk check-in failed: ${category}`, selected.length, status || null, category);
+      const message = status === 409
+        ? 'This session is no longer accepting attendance. Your selection was preserved.'
+        : status === 401
+          ? 'Your session expired. Sign in again before retrying.'
+          : status === 0
+            ? 'The check-in request could not reach the server. Check your connection and retry.'
+            : 'The check-in request was rejected. Your selection was preserved so you can retry.';
+      await this.notifications.error(message);
     } finally {
       this.bulkSubmitting.set(false);
     }
@@ -773,6 +789,39 @@ export class SessionDetailPage implements OnDestroy {
       this.qrFeedback.set(null);
       this.qrFeedbackTimer = undefined;
     }, 2200);
+  }
+
+  private recordCheckInDiagnostic(
+    event: string,
+    correlationId: string,
+    summary: string,
+    selectedCount: number,
+    httpStatus: number | null = null,
+    errorCategory: string | null = null,
+  ): void {
+    if (!this.showQrDiagnostics) return;
+    this.qrScanner.recordContinuousScanDiagnostic?.(
+      event,
+      `${summary}; session=${this.sessionId ? 'present' : 'missing'} context=${this.workspace.selectedOrganizationId() && this.workspace.selectedBranchId() ? 'valid' : 'invalid'}`,
+      {
+        correlation_id: correlationId,
+        selected_count: selectedCount,
+        session: this.sessionId ? 'present' : 'missing',
+        context_valid: Boolean(this.workspace.selectedOrganizationId() && this.workspace.selectedBranchId()),
+        http_status: httpStatus,
+        error_category: errorCategory,
+      },
+    );
+  }
+
+  private checkInErrorCategory(status: number): string {
+    if (status === 0) return 'network';
+    if (status === 400) return 'invalid_request';
+    if (status === 401) return 'session_expired';
+    if (status === 403 || status === 404) return 'not_authorized_or_unavailable';
+    if (status === 409) return 'session_not_recordable';
+    if (status >= 500) return 'server_error';
+    return 'request_rejected';
   }
 
   async refreshSummary(): Promise<void> {

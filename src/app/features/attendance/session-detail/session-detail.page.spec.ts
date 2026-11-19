@@ -209,6 +209,35 @@ describe('SessionDetailPage', () => {
     expect(api.recordBulkManualCheckIn).not.toHaveBeenCalled();
   });
 
+  it('submits QR-selected members through the bulk manual contract and clears confirmed items', async () => {
+    api.recordBulkManualCheckIn.mockReturnValueOnce(of({
+      results: [{ idempotency_key: 'qr-key', member_id: 'member-qr', status: 'checked_in' }],
+    }));
+    const page = fixture.componentInstance;
+    page.startBulkManualCheckIn();
+    page.selectMember({ id: 'member-qr', membership_number: 'P-002', first_name: 'Grace', last_name: 'Hopper' });
+    const queued = page.queueItems()[0];
+    await page.confirmBulkCheckIn();
+
+    expect(api.recordBulkManualCheckIn).toHaveBeenCalledWith('org-1', 'session-1', [{
+      idempotency_key: queued.idempotencyKey,
+      member_id: 'member-qr',
+      method: 'manual',
+    }]);
+    expect(page.queueItems()).toHaveLength(0);
+  });
+
+  it('preserves the queue when bulk confirmation is rejected', async () => {
+    api.recordBulkManualCheckIn.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 409 })));
+    const page = fixture.componentInstance;
+    page.startBulkManualCheckIn();
+    page.selectMember({ id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' });
+
+    await page.confirmBulkCheckIn();
+
+    expect(page.queueItems()).toHaveLength(1);
+  });
+
   it('preserves all queued QR members when the native scanner is cancelled', async () => {
     let onOutcome: ((outcome: { kind: 'scanned'; qrIdentifier: string }) => void) | undefined;
     qrScanner.startContinuousScan.mockImplementationOnce(async (callback: typeof onOutcome) => {

@@ -76,7 +76,8 @@ export type BulkAttendanceResultStatus = 'checked_in' | 'already_attended' | 'un
 export interface BulkAttendanceCheckInItem {
   readonly idempotency_key: string;
   readonly member_id: string;
-  readonly method: 'manual' | 'qr';
+  /** The bulk endpoint records selected members through its manual-check-in contract. */
+  readonly method: 'manual';
 }
 
 export interface BulkAttendanceCheckInResult {
