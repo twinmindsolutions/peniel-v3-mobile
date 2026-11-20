@@ -301,6 +301,7 @@ export class SessionDetailPage implements OnDestroy {
 
   startBulkManualCheckIn(): void {
     if (!this.attendance.canRecordAttendance() || this.recordingUnavailableMessage()) return;
+    this.ensureQueueContext();
     this.individualCheckInExpanded.set(false);
     this.bulkMode.set(true);
     this.bulkReview.set(false);
@@ -312,6 +313,7 @@ export class SessionDetailPage implements OnDestroy {
 
   async startBulkQrScan(): Promise<void> {
     if (!this.attendance.canRecordAttendance() || this.recordingUnavailableMessage() || this.bulkSubmitting() || this.qrScanInFlight()) return;
+    this.ensureQueueContext();
     this.individualCheckInExpanded.set(false);
     this.bulkMode.set(true);
     this.bulkReview.set(false);
@@ -323,7 +325,7 @@ export class SessionDetailPage implements OnDestroy {
     this.bulkQrScanning.set(true);
     this.scanAuthorizationSnapshot = this.captureScanAuthorization();
     this.bulkQrContextKey = `${this.workspace.selectedOrganizationId() ?? ''}:${this.workspace.selectedBranchId() ?? ''}`;
-    const result = await this.qrScanner.startContinuousScan((outcome) => void this.handleBulkQrOutcome(outcome));
+    const result = await this.qrScanner.startContinuousScan((outcome) => this.handleBulkQrOutcome(outcome));
     if ('stop' in result) {
       this.bulkQrSession = result;
       return;
@@ -466,6 +468,19 @@ export class SessionDetailPage implements OnDestroy {
 
   private syncQueue(): void {
     this.queueItems.set(this.checkInQueue.items());
+  }
+
+  private ensureQueueContext(): void {
+    const organizationId = this.workspace.selectedOrganizationId();
+    const branchId = this.workspace.selectedBranchId();
+    if (!organizationId || !branchId || !this.sessionId) return;
+    this.checkInQueue.setContext(
+      this.auth.user()?.id ?? '',
+      organizationId,
+      branchId,
+      this.sessionId,
+    );
+    this.syncQueue();
   }
 
   private handleBulkQrStartFailure(result: QrScanOutcome): void {

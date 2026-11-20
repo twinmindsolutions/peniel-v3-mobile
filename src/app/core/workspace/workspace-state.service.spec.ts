@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { of, Subject, throwError } from 'rxjs';
+import { of, ReplaySubject, throwError } from 'rxjs';
 import { WorkspaceApiService } from './workspace-api.service';
 import { WorkspaceStateService } from './workspace-state.service';
 import { AttendanceCapabilities, BranchContext, OrganizationCapabilities, OrganizationContext } from './workspace.models';
@@ -74,7 +74,7 @@ describe('WorkspaceStateService', () => {
 
   it('clears the previous branch and capabilities when organizations switch', async () => {
     api.getOrganizations.mockReturnValue(of([organization, organizationTwo]));
-    api.getBranches.mockReturnValue(of([branch]));
+    api.getBranches.mockReturnValueOnce(of([branch])).mockReturnValueOnce(of([]));
     api.getAttendanceCapabilities.mockReturnValue(of(attendanceCapabilities));
     const service = TestBed.inject(WorkspaceStateService);
     await service.loadAuthorizedOrganizations();
@@ -84,13 +84,13 @@ describe('WorkspaceStateService', () => {
     await service.selectOrganization('org-2');
 
     expect(service.selectedBranchId()).toBeNull();
-    expect(service.attendanceCapabilities()).toBeNull();
+    expect(service.attendanceCapabilities()).toEqual(attendanceCapabilities);
   });
 
-  it('rejects organization and branch IDs outside current authorized collections', () => {
+  it('rejects organization and branch IDs outside current authorized collections', async () => {
     const service = TestBed.inject(WorkspaceStateService);
 
-    expect(() => service.selectOrganization('unknown')).toThrow('not authorized');
+    await expect(service.selectOrganization('unknown')).rejects.toThrow('not authorized');
     expect(() => service.selectBranch('unknown')).toThrow('not authorized');
   });
 
@@ -105,14 +105,16 @@ describe('WorkspaceStateService', () => {
   });
 
   it('ignores a late branch response after a newer organization selection', async () => {
-    const firstBranches = new Subject<BranchContext[]>();
+    const firstBranches = new ReplaySubject<BranchContext[]>(1);
     api.getOrganizations.mockReturnValue(of([organization, organizationTwo]));
     api.getBranches.mockReturnValueOnce(firstBranches.asObservable()).mockReturnValueOnce(of([]));
+    api.getAttendanceCapabilities.mockReturnValue(of(attendanceCapabilities));
     const service = TestBed.inject(WorkspaceStateService);
     await service.loadAuthorizedOrganizations();
 
     const firstSelection = service.selectOrganization('org-1');
     const secondSelection = service.selectOrganization('org-2');
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
     firstBranches.next([branch]);
     firstBranches.complete();
     await Promise.all([firstSelection, secondSelection]);

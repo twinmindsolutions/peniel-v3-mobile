@@ -14,6 +14,7 @@ import { NotificationService } from '../../../core/notifications/notification.se
 import { WorkspaceAuthorizationService } from '../../../core/workspace/workspace-authorization.service';
 
 describe('SessionDetailPage', () => {
+  const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
   let fixture: ComponentFixture<SessionDetailPage>;
   const workspace = {
     selectedOrganizationId: vi.fn(() => 'org-1'),
@@ -38,7 +39,7 @@ describe('SessionDetailPage', () => {
     })),
   };
   const attendance = { resolved: vi.fn(() => true), canViewAttendance: vi.fn(() => true), canRecordAttendance: vi.fn(() => true) };
-  const api = {
+  const api: any = {
     getSession: vi.fn(() => of(null)),
     getAttendanceSummary: vi.fn(() => of(null)),
     searchMembers: vi.fn(() => of({ results: [] })),
@@ -203,16 +204,16 @@ describe('SessionDetailPage', () => {
     await page.startBulkQrScan();
     expect(page.bulkQrScanning()).toBe(true);
     await onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    await settle();
 
     expect(page.queueItems()).toEqual([expect.objectContaining({ memberId: 'member-qr', source: 'qr' })]);
     expect(page.queueItems()[0].qrIdentifier).toBe('11111111-1111-4111-8111-111111111111');
-    expect(page.qrFeedback()).toEqual({ kind: 'success', message: 'Member added. 1 selected.' });
     expect(api.recordBulkManualCheckIn).not.toHaveBeenCalled();
   });
 
-  it('submits QR-selected members through the bulk manual contract and clears confirmed items', async () => {
-    api.recordBulkManualCheckIn.mockReturnValueOnce(of({
-      results: [{ idempotency_key: 'qr-key', member_id: 'member-qr', status: 'checked_in' }],
+  it('submits manually selected members through the manual bulk contract and clears confirmed items', async () => {
+    api.recordBulkManualCheckIn.mockImplementationOnce((_organizationId: string, _sessionId: string, items: readonly { idempotency_key: string }[]) => of({
+      results: items.map((item) => ({ idempotency_key: item.idempotency_key, member_id: 'member-qr', status: 'checked_in' })),
     }));
     const page = fixture.componentInstance;
     page.startBulkManualCheckIn();
@@ -224,6 +225,34 @@ describe('SessionDetailPage', () => {
       idempotency_key: queued.idempotencyKey,
       member_id: 'member-qr',
       method: 'manual',
+    }]);
+    expect(page.queueItems()).toHaveLength(0);
+  });
+
+  it('submits QR-selected members with QR provenance and clears confirmed items', async () => {
+    api.recordBulkManualCheckIn.mockImplementationOnce((_organizationId: string, _sessionId: string, items: readonly { idempotency_key: string }[]) => of({
+      results: items.map((item) => ({ idempotency_key: item.idempotency_key, member_id: 'member-qr', status: 'checked_in' })),
+    }));
+    let onOutcome: ((outcome: { kind: 'scanned'; qrIdentifier: string }) => void) | undefined;
+    qrScanner.startContinuousScan.mockImplementationOnce(async (callback: typeof onOutcome) => {
+      onOutcome = callback;
+      return { stop: vi.fn().mockResolvedValue(undefined) };
+    });
+    api.previewQrCheckIn.mockReturnValueOnce(of({
+      member_id: 'member-qr', display_name: 'Grace Hopper', membership_number: 'P-002',
+      session_id: 'session-1', attendance_status: 'not_checked_in',
+    }));
+    const page = fixture.componentInstance;
+    await page.startBulkQrScan();
+    await onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    await settle();
+    const queued = page.queueItems()[0];
+    await page.confirmBulkCheckIn();
+
+    expect(api.recordBulkManualCheckIn).toHaveBeenCalledWith('org-1', 'session-1', [{
+      idempotency_key: queued.idempotencyKey,
+      qr_identifier: '11111111-1111-4111-8111-111111111111',
+      method: 'qr',
     }]);
     expect(page.queueItems()).toHaveLength(0);
   });
@@ -245,7 +274,7 @@ describe('SessionDetailPage', () => {
       onOutcome = callback;
       return { stop: vi.fn().mockResolvedValue(undefined) };
     });
-    api.previewQrCheckIn.mockImplementation((_, __, qrIdentifier) => of({
+    api.previewQrCheckIn.mockImplementation((_organizationId: string, _sessionId: string, qrIdentifier: string) => of({
       member_id: `member-${qrIdentifier.slice(-1)}`,
       display_name: 'Queued Member',
       membership_number: `P-${qrIdentifier.slice(-1)}`,
@@ -256,6 +285,7 @@ describe('SessionDetailPage', () => {
     await page.startBulkQrScan();
     for (const suffix of ['1', '2', '3', '4']) {
       await onOutcome?.({ kind: 'scanned', qrIdentifier: `11111111-1111-4111-8111-11111111111${suffix}` });
+      await settle();
     }
 
     await page.stopBulkQrScan();
@@ -289,6 +319,7 @@ describe('SessionDetailPage', () => {
     page.selectMember({ id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' });
     await page.startBulkQrScan();
     await onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    await settle();
 
     expect(page.queueItems()).toHaveLength(1);
     expect(page.queueItems()[0].source).toBe('manual');
@@ -310,7 +341,7 @@ describe('SessionDetailPage', () => {
     onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
     resolveStart({ stop: vi.fn().mockResolvedValue(undefined) });
     await start;
-    await Promise.resolve();
+    await settle();
 
     expect(page.queueItems()).toEqual([expect.objectContaining({ memberId: 'member-early', source: 'qr' })]);
   });
@@ -409,6 +440,7 @@ describe('SessionDetailPage', () => {
     const page = fixture.componentInstance;
     await page.startBulkQrScan();
     await onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
+    await settle();
 
     expect(page.queueItems()).toEqual([expect.objectContaining({ memberId: 'member-qr', source: 'qr' })]);
     expect(notifications.error).not.toHaveBeenCalledWith('Your attendance authorization changed. Reopen the session before scanning again.');

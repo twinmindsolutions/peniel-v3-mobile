@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
-import { of, throwError } from 'rxjs';
+import { of, ReplaySubject, throwError } from 'rxjs';
 import { AuthApiService } from './auth-api.service';
 import { AuthService } from './auth.service';
 import { CREDENTIAL_STORAGE_ADAPTER, CredentialStorageAdapter, SecureCredentialStore } from './secure-credential-store.service';
@@ -70,10 +70,13 @@ describe('AuthService', () => {
   it('shares one refresh request between concurrent callers', async () => {
     await service.login('staff@example.test', 'secret');
     let resolveRefresh!: (value: MobileTokenResponse) => void;
-    api.refresh.mockReturnValueOnce(new Promise<MobileTokenResponse>((resolve) => { resolveRefresh = resolve; }));
+    const refreshResponse = new ReplaySubject<MobileTokenResponse>(1);
+    api.refresh.mockReturnValueOnce(refreshResponse.asObservable());
+    resolveRefresh = (value) => refreshResponse.next(value);
 
     const first = service.refreshAccessToken();
     const second = service.refreshAccessToken();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
     resolveRefresh(response);
 
     await expect(Promise.all([first, second])).resolves.toEqual(['access-token', 'access-token']);
