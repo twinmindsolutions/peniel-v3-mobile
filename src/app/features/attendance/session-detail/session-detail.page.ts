@@ -60,7 +60,10 @@ export class SessionDetailPage implements OnDestroy {
   readonly qrPreview = signal<AttendanceQrPreviewResponse | null>(null);
   readonly qrScanInFlight = signal(false);
   readonly scannerMessage = signal<string | null>(null);
-  readonly loading = signal(false);
+  // A newly created page has not attempted its first load yet. Starting in
+  // loading prevents the template from interpreting the initial null session
+  // as a confirmed unavailable result during native scanner re-entry.
+  readonly loading = signal(true);
   readonly memberLoading = signal(false);
   readonly memberError = signal(false);
   readonly memberNextPage = signal<number | null>(null);
@@ -94,6 +97,7 @@ export class SessionDetailPage implements OnDestroy {
   private readonly recentQrScans = new Map<string, number>();
   private scanAuthorizationSnapshot: ScanAuthorizationSnapshot | null = null;
   private qrFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
+  private loadedSessionContext: { organizationId: string; branchId: string; sessionId: string } | null = null;
 
   constructor() {
     addIcons({ checkmarkCircle, ellipseOutline, peopleOutline, qrCodeOutline });
@@ -107,7 +111,9 @@ export class SessionDetailPage implements OnDestroy {
       }).catch(() => undefined);
     }
     effect(() => {
-      const key = `${this.workspace.selectedOrganizationId() ?? ''}:${this.workspace.selectedBranchId() ?? ''}:${this.attendance.canViewAttendance()}:${this.sessionId}`;
+      const organizationId = this.workspace.selectedOrganizationId();
+      const branchId = this.workspace.selectedBranchId();
+      const key = `${organizationId ?? ''}:${branchId ?? ''}:${this.attendance.canViewAttendance()}:${this.sessionId}`;
       const scanBusy = this.qrScanInFlight() || this.bulkQrScanning() || this.checkInInFlight();
       if (scanBusy) {
         if (key !== this.lastKey && this.bulkQrScanning()) {
@@ -135,11 +141,13 @@ export class SessionDetailPage implements OnDestroy {
       if (this.deferredContextLoad) {
         this.deferredContextLoad = false;
         this.lastKey = key;
+        if (this.workspace.authorizationState() === 'loading' && (!organizationId || !branchId) && this.session()) return;
         void this.load();
         return;
       }
       if (key === this.lastKey) return;
       this.lastKey = key;
+      if (this.workspace.authorizationState() === 'loading' && (!organizationId || !branchId) && this.session()) return;
       void this.load();
     });
   }
@@ -158,6 +166,16 @@ export class SessionDetailPage implements OnDestroy {
     const organizationId = this.workspace.selectedOrganizationId();
     const branchId = this.workspace.selectedBranchId();
     const version = ++this.requestVersion;
+    const authorizationState = this.workspace.authorizationState();
+    const authorizationPending = authorizationState === 'unknown'
+      || authorizationState === 'loading'
+      || (authorizationState !== 'denied' && !this.workspace.authorizationVerified());
+    const sameLoadedContext = Boolean(
+      this.loadedSessionContext
+      && this.loadedSessionContext.sessionId === this.sessionId
+      && (!organizationId || this.loadedSessionContext.organizationId === organizationId)
+      && (!branchId || this.loadedSessionContext.branchId === branchId),
+    );
     // Authorization refreshes can briefly clear the selected workspace.
     // Do not turn that incomplete state into a new queue context.
     if (organizationId && branchId && this.sessionId) {
@@ -169,8 +187,31 @@ export class SessionDetailPage implements OnDestroy {
       );
     }
     this.syncQueue();
-    this.session.set(null);
-    this.summary.set(null);
+    this.memberError.set(false);
+    if (!organizationId || !branchId || !this.sessionId || authorizationPending || authorizationState === 'denied' || !this.attendance.canViewAttendance()) {
+      // Returning from the native scanner can briefly leave the workspace
+      // context incomplete while authorization is refreshed. Keep the last
+      // verified session visible during that interval; interactive controls
+      // remain guarded by the live attendance permission signals.
+      if (authorizationPending && sameLoadedContext && this.session()) {
+        this.loading.set(false);
+        this.error.set(false);
+        return;
+      }
+      this.session.set(null);
+      this.summary.set(null);
+      this.loadedSessionContext = null;
+      this.loading.set(authorizationPending);
+      this.error.set(!authorizationPending && Boolean(this.sessionId));
+      return;
+    }
+    // A same-context refresh must not discard a verified session while its
+    // replacement is still in flight. The backend response remains decisive.
+    if (!sameLoadedContext) {
+      this.session.set(null);
+      this.summary.set(null);
+      this.loadedSessionContext = null;
+    }
     this.members.set([]);
     this.memberNextPage.set(null);
     this.memberSearch = '';
@@ -180,16 +221,14 @@ export class SessionDetailPage implements OnDestroy {
     this.scannerMessage.set(null);
     this.qrFeedback.set(null);
     this.error.set(false);
-    this.memberError.set(false);
-    if (!organizationId || !branchId || !this.sessionId || !this.attendance.canViewAttendance()) {
-      this.loading.set(false);
-      return;
-    }
     this.loading.set(true);
     try {
       const session = await firstValueFrom(this.api.getSession(organizationId, this.sessionId));
-      if (!this.isCurrent(version, organizationId, branchId)) return;
+      if (!this.isCurrent(version, organizationId, branchId)) {
+        return;
+      }
       this.session.set(session);
+      this.loadedSessionContext = { organizationId, branchId, sessionId: this.sessionId };
       const showMemberSearch = this.bulkMode() || this.individualCheckInExpanded();
       if (showMemberSearch) this.memberLoading.set(true);
       const [summaryResult, membersResult] = await Promise.allSettled([
@@ -206,7 +245,12 @@ export class SessionDetailPage implements OnDestroy {
         this.memberError.set(true);
       }
     } catch {
-      if (this.isCurrent(version, organizationId, branchId)) this.error.set(true);
+      if (this.isCurrent(version, organizationId, branchId)) {
+        this.session.set(null);
+        this.summary.set(null);
+        this.loadedSessionContext = null;
+        this.error.set(true);
+      }
     } finally {
       if (this.isCurrent(version, organizationId, branchId)) this.loading.set(false);
       if (this.isCurrent(version, organizationId, branchId) && memberVersion === this.memberRequestVersion) this.memberLoading.set(false);
@@ -669,7 +713,7 @@ export class SessionDetailPage implements OnDestroy {
       message: `${member.first_name} ${member.last_name} will be checked in to this session.`,
       confirmLabel: 'Check in',
     });
-    if (!confirmed || this.workspace.selectedOrganizationId() !== organizationId || this.workspace.selectedBranchId() !== branchId) return;
+    if (!confirmed || this.workspace.selectedOrganizationId() !== organizationId || this.workspace.selectedBranchId() !== branchId || !this.attendance.canRecordAttendance()) return;
     const version = this.requestVersion;
     this.checkInInFlight.set(true);
     try {
@@ -777,7 +821,10 @@ export class SessionDetailPage implements OnDestroy {
   private isCurrent(version: number, organizationId: string, branchId: string): boolean {
     return version === this.requestVersion
       && this.workspace.selectedOrganizationId() === organizationId
-      && this.workspace.selectedBranchId() === branchId;
+      && this.workspace.selectedBranchId() === branchId
+      && this.workspace.authorizationState() === 'allowed'
+      && this.workspace.authorizationVerified()
+      && this.attendance.canViewAttendance();
   }
 
   private isCurrentScan(

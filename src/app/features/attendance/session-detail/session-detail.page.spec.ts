@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { SessionDetailPage } from './session-detail.page';
 import { AuthService } from '../../../core/auth/auth.service';
 import { getRecordingUnavailableMessage } from './session-detail.page';
@@ -15,6 +15,17 @@ import { WorkspaceAuthorizationService } from '../../../core/workspace/workspace
 
 describe('SessionDetailPage', () => {
   const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+  const verifiedSession: AttendanceSession = {
+    id: 'session-1', organization: 'org-1', branch: { id: 'branch-1', name: 'Branch' },
+    service_type: { id: 'service-1', code: 'service', name: 'Service' }, group: null,
+    source: 'ad_hoc', recurring_schedule: null, local_occurrence_date: new Date().toISOString().slice(0, 10),
+    scheduled_start: new Date(Date.now() - 60_000).toISOString(),
+    scheduled_end: new Date(Date.now() + 60_000).toISOString(),
+    timezone: 'Europe/London', service_type_name_snapshot: 'Service',
+    service_type_resets_absence_timer_snapshot: false, closure_after_hours_snapshot: 24,
+    schedule_revision_snapshot: null, is_customized: false, status: 'scheduled',
+    revision: 1, created_at: '2026-11-20T09:00:00Z', updated_at: '2026-11-20T09:00:00Z',
+  };
   let fixture: ComponentFixture<SessionDetailPage>;
   const workspace = {
     selectedOrganizationId: vi.fn(() => 'org-1'),
@@ -58,8 +69,10 @@ describe('SessionDetailPage', () => {
     workspace.selectedBranchId.mockReturnValue('branch-1');
     workspace.authorizationState.mockReturnValue('allowed');
     workspace.authorizationVerified.mockReturnValue(true);
+    attendance.resolved.mockReturnValue(true);
     attendance.canViewAttendance.mockReturnValue(true);
     attendance.canRecordAttendance.mockReturnValue(true);
+    api.getSession.mockReturnValue(of(null));
     await TestBed.configureTestingModule({
       imports: [SessionDetailPage],
       providers: [
@@ -78,6 +91,7 @@ describe('SessionDetailPage', () => {
 
   it('creates a detail view for an authorized workspace', () => {
     expect(fixture.componentInstance.sessionId).toBe('session-1');
+    expect(fixture.componentInstance.loading()).toBe(true);
   });
 
   it('keeps individual check-in collapsed until explicitly opened', () => {
@@ -175,6 +189,178 @@ describe('SessionDetailPage', () => {
     await page.load();
 
     expect(page.queueItems()).toEqual([expect.objectContaining({ memberId: 'member-1' })]);
+  });
+
+  it('keeps the verified session visible during a transient workspace refresh', async () => {
+    api.getSession.mockReturnValue(of({ id: 'session-1', branch: { id: 'branch-1' } }));
+    api.getAttendanceSummary.mockReturnValue(of({}));
+    const page = fixture.componentInstance;
+
+    await page.load();
+    expect(page.session()).not.toBeNull();
+
+    workspace.selectedOrganizationId.mockReturnValue(null as never);
+    workspace.selectedBranchId.mockReturnValue(null as never);
+    workspace.authorizationState.mockReturnValue('loading');
+    workspace.authorizationVerified.mockReturnValue(false);
+    attendance.canViewAttendance.mockReturnValue(false);
+    await page.load();
+
+    expect(page.session()).toEqual(expect.objectContaining({ id: 'session-1' }));
+    expect(page.error()).toBe(false);
+  });
+
+  it('keeps the verified session and queue through the paused-scanner refresh request', async () => {
+    api.getSession.mockReturnValue(of(verifiedSession));
+    api.getAttendanceSummary.mockReturnValue(of({ registered_member_check_in_count: 0, recording_staff_count: 0, recording_staff: [] }));
+    const page = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
+    page.bulkMode.set(true);
+    page.selectMember({ id: 'member-1', membership_number: 'P-001', first_name: 'Ada', last_name: 'Lovelace' });
+    page.bulkQrPaused.set(true);
+
+    workspace.authorizationState.mockReturnValue('loading');
+    workspace.authorizationVerified.mockReturnValue(false);
+    attendance.resolved.mockReturnValue(false);
+    attendance.canViewAttendance.mockReturnValue(false);
+    attendance.canRecordAttendance.mockReturnValue(false);
+    await page.load();
+    expect(page.session()).toEqual(verifiedSession);
+    expect(page.queueItems()).toHaveLength(1);
+
+    workspace.authorizationState.mockReturnValue('allowed');
+    workspace.authorizationVerified.mockReturnValue(true);
+    attendance.resolved.mockReturnValue(true);
+    attendance.canViewAttendance.mockReturnValue(true);
+    attendance.canRecordAttendance.mockReturnValue(true);
+    const response = new Subject<AttendanceSession>();
+    api.getSession.mockReturnValue(response.asObservable());
+    const refresh = page.load();
+    fixture.detectChanges();
+
+    expect(page.loading()).toBe(true);
+    expect(page.session()).toEqual(verifiedSession);
+    expect(fixture.nativeElement.textContent).not.toContain('Session unavailable');
+    expect(page.queueItems()).toHaveLength(1);
+
+    response.next(verifiedSession);
+    response.complete();
+    await refresh;
+    fixture.detectChanges();
+    expect(page.session()).toEqual(verifiedSession);
+    expect(fixture.nativeElement.textContent).not.toContain('Session unavailable');
+    expect(page.queueItems()).toHaveLength(1);
+  });
+
+  it('shows loading with a paused scanner when no session has been verified yet', async () => {
+    const response = new Subject<AttendanceSession>();
+    api.getSession.mockReturnValue(response.asObservable());
+    const page = fixture.componentInstance;
+    page.bulkQrPaused.set(true);
+    const load = page.load();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Loading session');
+    expect(fixture.nativeElement.textContent).not.toContain('Session unavailable');
+    response.next(verifiedSession);
+    response.complete();
+    await load;
+  });
+
+  it('keeps loading rather than unavailable while authorization is unresolved with no verified session', async () => {
+    const page = fixture.componentInstance;
+    page.bulkQrPaused.set(true);
+    workspace.authorizationState.mockReturnValue('loading');
+    workspace.authorizationVerified.mockReturnValue(false);
+    attendance.resolved.mockReturnValue(false);
+    attendance.canViewAttendance.mockReturnValue(false);
+
+    await page.load();
+    fixture.detectChanges();
+    expect(page.session()).toBeNull();
+    expect(page.loading()).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Loading session');
+    expect(fixture.nativeElement.textContent).not.toContain('Session unavailable');
+    expect(api.getSession).not.toHaveBeenCalled();
+  });
+
+  it.each([403, 404])('invalidates a verified session after a %i response', async (status) => {
+    api.getSession.mockReturnValue(of(verifiedSession));
+    const page = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await page.load();
+    page.bulkQrPaused.set(true);
+    api.getSession.mockReturnValue(throwError(() => new HttpErrorResponse({ status })));
+    await page.load();
+    fixture.detectChanges();
+    expect(page.session()).toBeNull();
+    expect(page.error()).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Session unavailable');
+  });
+
+  it('rejects an earlier session response after the workspace branch changes', async () => {
+    api.getSession.mockReturnValue(of(verifiedSession));
+    const page = fixture.componentInstance;
+    await page.load();
+    const stale = new Subject<AttendanceSession>();
+    api.getSession.mockReturnValue(stale.asObservable());
+    const oldLoad = page.load();
+    workspace.selectedBranchId.mockReturnValue('branch-2');
+    api.getSession.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
+    await page.load();
+    stale.next(verifiedSession);
+    stale.complete();
+    await oldLoad;
+    expect(page.session()).toBeNull();
+    expect(page.error()).toBe(true);
+  });
+
+  it('invalidates a verified session after confirmed permission revocation', async () => {
+    api.getSession.mockReturnValue(of(verifiedSession));
+    const page = fixture.componentInstance;
+    await page.load();
+    page.bulkQrPaused.set(true);
+    attendance.canViewAttendance.mockReturnValue(false);
+    attendance.canRecordAttendance.mockReturnValue(false);
+    await page.load();
+    fixture.detectChanges();
+    expect(page.session()).toBeNull();
+    expect(page.error()).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain('Session unavailable');
+    expect(api.getSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('invalidates a verified session on confirmed authorization denial even before capability signals settle', async () => {
+    api.getSession.mockReturnValue(of(verifiedSession));
+    const page = fixture.componentInstance;
+    await page.load();
+    workspace.authorizationState.mockReturnValue('denied');
+    workspace.authorizationVerified.mockReturnValue(false);
+    await page.load();
+
+    expect(page.session()).toBeNull();
+    expect(page.loading()).toBe(false);
+    expect(page.error()).toBe(true);
+    expect(api.getSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows unavailable after confirmed attendance access denial', async () => {
+    const page = fixture.componentInstance;
+    attendance.canViewAttendance.mockReturnValue(false);
+    workspace.authorizationState.mockReturnValue('allowed');
+    await page.load();
+
+    expect(page.session()).toBeNull();
+    expect(page.error()).toBe(true);
+  });
+
+  it('shows unavailable after a definitive session not-found response', async () => {
+    api.getSession.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 404 })));
+    const page = fixture.componentInstance;
+    await page.load();
+
+    expect(page.error()).toBe(true);
   });
 
   it('locks existing attendance records and submits only new selections', async () => {

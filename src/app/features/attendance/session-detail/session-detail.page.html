@@ -5,7 +5,7 @@
       <app-feedback-state kind="loading" title="Verifying access" message="Checking your attendance permissions." />
     } @else if (!attendance.canViewAttendance() && !(bulkQrScanning() || bulkQrPaused())) {
       <app-feedback-state title="Attendance is unavailable" message="Your current workspace does not include attendance viewing access." />
-    } @else if (loading() && !(bulkQrScanning() || bulkQrPaused())) {
+    } @else if (loading() && !session()) {
       <app-feedback-state kind="loading" title="Loading session" message="Retrieving session details." />
     } @else if (error() || !session()) {
       <app-feedback-state title="Session unavailable" message="This session is unavailable in your current workspace." (retry)="load()" />
@@ -23,7 +23,7 @@
             <button
               type="button"
               class="bulk-action-card"
-              [disabled]="qrScanInFlight() || checkInInFlight() || bulkSubmitting() || bulkQrScanning()"
+              [disabled]="!attendance.canRecordAttendance() || qrScanInFlight() || checkInInFlight() || bulkSubmitting() || bulkQrScanning()"
               (click)="startBulkQrScan()"
             >
               <ion-icon name="qr-code-outline" aria-hidden="true" />
@@ -33,7 +33,7 @@
             <button
               type="button"
               class="bulk-action-card"
-              [disabled]="qrScanInFlight() || checkInInFlight() || bulkSubmitting() || bulkQrScanning()"
+              [disabled]="!attendance.canRecordAttendance() || qrScanInFlight() || checkInInFlight() || bulkSubmitting() || bulkQrScanning()"
               (click)="startBulkManualCheckIn()"
             >
               <ion-icon name="people-outline" aria-hidden="true" />
@@ -62,7 +62,7 @@
           @if (bulkMode() || individualCheckInExpanded()) {
             <div id="individual-checkin-panel" class="individual-checkin-panel">
               @if (!bulkMode()) {
-                <app-button variant="secondary" expand="block" [loading]="qrScanInFlight()" [disabled]="qrScanInFlight() || checkInInFlight()" (click)="scanQr()">
+                <app-button variant="secondary" expand="block" [loading]="qrScanInFlight()" [disabled]="!attendance.canRecordAttendance() || qrScanInFlight() || checkInInFlight()" (click)="scanQr()">
                   <ion-icon slot="start" name="qr-code-outline" aria-hidden="true" />
                   Scan one QR code
                 </app-button>
@@ -71,6 +71,7 @@
                 <p class="manual-label">Select members for manual check-in</p>
               }
               <ion-searchbar
+                [disabled]="!attendance.canViewAttendance()"
                 [value]="searchTerm()"
                 placeholder="Search members"
                 aria-label="Search eligible members"
@@ -91,7 +92,7 @@
                     detail="true"
                     [class.member-selected]="bulkMode() && isQueued(member.id)"
                     [class.member-attended]="!!member.already_attended"
-                    [disabled]="checkInInFlight() || qrScanInFlight() || bulkSubmitting() || !!member.already_attended"
+                    [disabled]="!attendance.canRecordAttendance() || checkInInFlight() || qrScanInFlight() || bulkSubmitting() || !!member.already_attended"
                     (click)="selectMember(member)"
                     [attr.aria-label]="bulkMode() ? memberSelectionLabel(member) : null"
                     [attr.aria-pressed]="bulkMode() && !member.already_attended ? isQueued(member.id) : null"
@@ -117,7 +118,7 @@
                 </ion-list>
                 <ion-infinite-scroll
                   threshold="100px"
-                  [disabled]="memberNextPage() === null || memberLoading()"
+                  [disabled]="!attendance.canViewAttendance() || memberNextPage() === null || memberLoading()"
                   (ionInfinite)="loadMoreMembers($event)"
                 >
                   <ion-infinite-scroll-content loadingText="Loading more members..." />
@@ -147,7 +148,7 @@
               <div class="bulk-selection-actions">
                 <app-button variant="navy" [disabled]="!queueItems().length || bulkSubmitting()" (click)="reviewBulkSelection()">Review selection</app-button>
                 @if (bulkQrPaused()) {
-                  <app-button variant="ghost" [disabled]="bulkSubmitting()" (click)="resumeBulkQrScan()">Scan more</app-button>
+                  <app-button variant="ghost" [disabled]="!attendance.canRecordAttendance() || bulkSubmitting()" (click)="resumeBulkQrScan()">Scan more</app-button>
                 }
                 <app-button variant="ghost" [disabled]="bulkSubmitting()" (click)="discardBulkSelection()">Discard selection</app-button>
               </div>
@@ -174,14 +175,14 @@
                   }
                 </div>
               }
-              <app-button variant="navy" expand="block" [loading]="bulkSubmitting()" [disabled]="bulkSubmitting() || !queueItems().length" (click)="confirmBulkCheckIn()">Confirm check-in</app-button>
+              <app-button variant="navy" expand="block" [loading]="bulkSubmitting()" [disabled]="!attendance.canRecordAttendance() || bulkSubmitting() || !queueItems().length" (click)="confirmBulkCheckIn()">Confirm check-in</app-button>
               <app-button variant="ghost" expand="block" [disabled]="bulkSubmitting()" (click)="backToBulkSelection()">Back to selection</app-button>
             </div>
           }
           @if (!bulkMode() && selectedMember(); as member) {
             <div class="confirmation-panel" role="dialog" aria-labelledby="selected-member-title">
               <div><p class="eyebrow">Ready to confirm</p><h3 id="selected-member-title">{{ member.first_name }} {{ member.last_name }}</h3><p class="muted">{{ member.membership_number }}</p></div>
-              <app-button variant="navy" expand="block" [loading]="checkInInFlight()" [disabled]="checkInInFlight()" (click)="confirmSelectedMember()">Confirm check-in</app-button>
+              <app-button variant="navy" expand="block" [loading]="checkInInFlight()" [disabled]="!attendance.canRecordAttendance() || checkInInFlight()" (click)="confirmSelectedMember()">Confirm check-in</app-button>
               <app-button variant="ghost" [disabled]="checkInInFlight()" (click)="selectedMember.set(null)">Cancel</app-button>
             </div>
           }
