@@ -10,6 +10,8 @@ export interface AttendanceCheckInQueueItem {
   readonly firstName: string;
   readonly lastName: string;
   readonly source: AttendanceCheckInSource;
+  /** Kept in memory only so the backend can revalidate QR provenance at confirmation. */
+  readonly qrIdentifier?: string;
 }
 
 /**
@@ -43,11 +45,11 @@ export class AttendanceCheckInQueueService {
     this.add(member, 'manual');
   }
 
-  addQr(member: AttendanceMemberLookup): void {
-    this.add(member, 'qr');
+  addQr(member: AttendanceMemberLookup, qrIdentifier: string): void {
+    this.add(member, 'qr', qrIdentifier);
   }
 
-  private add(member: AttendanceMemberLookup, source: AttendanceCheckInSource): void {
+  private add(member: AttendanceMemberLookup, source: AttendanceCheckInSource, qrIdentifier?: string): void {
     if (this.itemsByMember.has(member.id)) return;
     this.itemsByMember.set(member.id, {
       idempotencyKey: crypto.randomUUID(),
@@ -56,6 +58,7 @@ export class AttendanceCheckInQueueService {
       firstName: member.first_name,
       lastName: member.last_name,
       source,
+      ...(source === 'qr' && qrIdentifier ? { qrIdentifier } : {}),
     });
   }
 

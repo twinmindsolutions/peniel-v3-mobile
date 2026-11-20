@@ -427,8 +427,9 @@ export class SessionDetailPage implements OnDestroy {
         this.sessionId,
         selected.map((item) => ({
           idempotency_key: item.idempotencyKey,
-          member_id: item.memberId,
-          method: 'manual' as const,
+          ...(item.source === 'qr'
+            ? { qr_identifier: item.qrIdentifier, method: 'qr' as const }
+            : { member_id: item.memberId, method: 'manual' as const }),
         })),
       ));
       this.recordCheckInDiagnostic('checkin_response_received', correlationId, 'bulk check-in response received', selected.length, 200);
@@ -567,7 +568,7 @@ export class SessionDetailPage implements OnDestroy {
         membership_number: preview.membership_number,
         first_name: preview.display_name,
         last_name: '',
-      });
+      }, outcome.qrIdentifier);
       this.syncQueue();
       this.recordMultiScanDiagnostic('member_queued', 'authorized member added to selection queue');
       this.scanDiagnostic('queue_item_added');

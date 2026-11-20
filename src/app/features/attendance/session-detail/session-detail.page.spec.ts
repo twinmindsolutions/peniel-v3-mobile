@@ -205,6 +205,7 @@ describe('SessionDetailPage', () => {
     await onOutcome?.({ kind: 'scanned', qrIdentifier: '11111111-1111-4111-8111-111111111111' });
 
     expect(page.queueItems()).toEqual([expect.objectContaining({ memberId: 'member-qr', source: 'qr' })]);
+    expect(page.queueItems()[0].qrIdentifier).toBe('11111111-1111-4111-8111-111111111111');
     expect(page.qrFeedback()).toEqual({ kind: 'success', message: 'Member added. 1 selected.' });
     expect(api.recordBulkManualCheckIn).not.toHaveBeenCalled();
   });
