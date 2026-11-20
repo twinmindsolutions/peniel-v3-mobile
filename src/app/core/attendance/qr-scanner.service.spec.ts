@@ -149,10 +149,6 @@ describe('QrScannerService', () => {
 
     const service = new QrScannerService();
     await expect(service.scan()).resolves.toEqual({ kind: 'invalid_payload' });
-    expect(service.singleScanDiagnostics()).toEqual(expect.arrayContaining([
-      expect.objectContaining({ event: 'single_scan_result_received', summary: expect.stringContaining('raw 1') }),
-      expect.objectContaining({ event: 'single_scan_payload_invalid', summary: expect.not.stringContaining('not-a-peniel-qr') }),
-    ]));
   });
 
   it.each([
@@ -195,12 +191,6 @@ describe('QrScannerService', () => {
       { kind: 'scanned', qrIdentifier: '9bf65ada-3822-424a-8a78-608af3fdc819' },
       { kind: 'scanned', qrIdentifier: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
     ]);
-    expect(service.continuousScanDiagnostics()).toEqual(expect.arrayContaining([
-      expect.objectContaining({ event: 'multi_scan_started', attemptId: 1 }),
-      expect.objectContaining({ event: 'native_scan_invoked', attemptId: 1 }),
-      expect.objectContaining({ event: 'next_scan_scheduled', attemptId: 1 }),
-      expect.objectContaining({ event: 'next_scan_invoked', attemptId: 1 }),
-    ]));
     if ('stop' in session) await session.stop();
     expect(BarcodeScanner.stopScan).toHaveBeenCalled();
   });

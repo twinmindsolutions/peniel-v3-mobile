@@ -44,26 +44,6 @@
           @if (scannerMessage(); as message) {
             <p class="scanner-message" role="status">{{ message }}</p>
           }
-          @if (showQrDiagnostics && singleQrDiagnostics().length) {
-            <details class="qr-diagnostics">
-              <summary>QR diagnostics (staging/development only)</summary>
-              <div class="qr-diagnostics__entries" role="log" aria-live="polite">
-                @for (entry of singleQrDiagnostics(); track $index) {
-                  <p><strong>Attempt {{ entry.attempt }}</strong> · {{ entry.event }} — {{ entry.summary }}</p>
-                }
-              </div>
-            </details>
-          }
-          @if (showQrDiagnostics && continuousQrDiagnostics().length) {
-            <details class="qr-diagnostics">
-              <summary>Multi-scan lifecycle (staging/development only)</summary>
-              <div class="qr-diagnostics__entries" role="log" aria-live="polite">
-                @for (entry of continuousQrDiagnostics(); track $index) {
-                  <p><strong>#{{ entry.sequence }}</strong> · attempt {{ entry.attemptId }} · {{ entry.event }} — {{ entry.summary }}</p>
-                }
-              </div>
-            </details>
-          }
           @if (!bulkMode()) {
             <button
               type="button"
@@ -177,7 +157,7 @@
             <div class="bulk-review" role="dialog" aria-labelledby="bulk-review-title">
               <p class="eyebrow">Review selection</p>
               <h3 id="bulk-review-title">{{ queueItems().length }} member{{ queueItems().length === 1 ? '' : 's' }} for {{ session()!.branch.name }}</h3>
-              <p class="muted">Confirming will submit these manual check-ins for {{ session()!.service_type_name_snapshot || session()!.service_type.name }}.</p>
+              <p class="muted">Confirming will submit these attendance check-ins for {{ session()!.service_type_name_snapshot || session()!.service_type.name }}.</p>
               <ion-list class="member-list" lines="none">
                 @for (item of queueItems(); track item.memberId) {
                   <ion-item>

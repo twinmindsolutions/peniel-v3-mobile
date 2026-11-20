@@ -32,4 +32,17 @@ describe('AttendanceCheckInQueueService', () => {
 
     expect(queue.items()).toHaveLength(1);
   });
+
+  it('keeps QR credentials only in the in-memory queue and clears them with the queue', () => {
+    const queue = new AttendanceCheckInQueueService();
+    queue.setContext('user-1', 'org-1', 'branch-1', 'session-1');
+    queue.addQr(member, '9bf65ada-3822-424a-8a78-608af3fdc819');
+
+    expect(queue.items()[0]).toEqual(expect.objectContaining({
+      source: 'qr',
+      qrIdentifier: '9bf65ada-3822-424a-8a78-608af3fdc819',
+    }));
+    queue.clear();
+    expect(queue.items()).toHaveLength(0);
+  });
 });

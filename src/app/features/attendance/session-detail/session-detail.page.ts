@@ -15,11 +15,9 @@ import { AttendanceSessionApiService } from '../../../core/attendance/attendance
 import { AttendanceCheckInResponse, AttendanceMemberLookup, AttendanceQrPreviewResponse, AttendanceSession, AttendanceSessionSummary, BulkAttendanceCheckInResult } from '../../../core/attendance/attendance.models';
 import { AuthService } from '../../../core/auth/auth.service';
 import { QrContinuousScanOutcome, QrContinuousScanSession, QrContinuousScanStopReason, QrScanOutcome, QrScannerService } from '../../../core/attendance/qr-scanner.service';
-import type { PenielQrLogValue } from '../../../core/attendance/qr-diagnostic-logger';
 import { NotificationService } from '../../../core/notifications/notification.service';
 import { WorkspaceAuthorizationService } from '../../../core/workspace/workspace-authorization.service';
 import { WorkspaceStateService } from '../../../core/workspace/workspace-state.service';
-import { environment } from '../../../../environments/environment';
 import { AppFeedbackStateComponent } from '../../../shared/ui/app-feedback-state/app-feedback-state.component';
 import { AppPageShellComponent } from '../../../shared/ui/app-page-shell/app-page-shell.component';
 import { AppButtonComponent } from '../../../shared/ui/app-button/app-button.component';
@@ -81,9 +79,6 @@ export class SessionDetailPage implements OnDestroy {
   readonly queueItems = signal<readonly AttendanceCheckInQueueItem[]>([]);
   readonly bulkSubmittedItems = signal<readonly AttendanceCheckInQueueItem[]>([]);
   readonly bulkResults = signal<readonly BulkAttendanceCheckInResult[]>([]);
-  readonly showQrDiagnostics = !environment.production;
-  readonly singleQrDiagnostics = this.qrScanner.singleScanDiagnostics ?? signal([]);
-  readonly continuousQrDiagnostics = this.qrScanner.continuousScanDiagnostics ?? signal([]);
   readonly sessionId: string;
   private requestVersion = 0;
   private memberRequestVersion = 0;
@@ -99,7 +94,6 @@ export class SessionDetailPage implements OnDestroy {
   private readonly recentQrScans = new Map<string, number>();
   private scanAuthorizationSnapshot: ScanAuthorizationSnapshot | null = null;
   private qrFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
-  private bulkCheckInAttempt = 0;
 
   constructor() {
     addIcons({ checkmarkCircle, ellipseOutline, peopleOutline, qrCodeOutline });
@@ -121,10 +115,8 @@ export class SessionDetailPage implements OnDestroy {
           const branchId = this.workspace.selectedBranchId();
           const contextIsTemporarilyUnavailable = !organizationId || !branchId;
           const contextChanged = this.bulkQrContextKey !== `${organizationId ?? ''}:${branchId ?? ''}`;
-          if (contextChanged && !contextIsTemporarilyUnavailable) this.recordMultiScanDiagnostic('context_changed', 'authorized workspace context changed');
           const authorizationState = this.workspace.authorizationState();
           const authorizationResolved = authorizationState === 'allowed' || authorizationState === 'denied';
-          if (!this.attendance.canRecordAttendance() && authorizationResolved && !contextIsTemporarilyUnavailable) this.recordMultiScanDiagnostic('permission_lost', 'attendance recording capability is no longer available');
           // WorkspaceAuthorizationService refreshes authorization on Android
           // resume. Its reload briefly clears the selected context before
           // restoring the same authorized organization/branch. Do not kill a
@@ -154,7 +146,6 @@ export class SessionDetailPage implements OnDestroy {
 
   ngOnDestroy(): void {
     this.componentAlive = false;
-    this.recordMultiScanDiagnostic('component_destroyed', 'session detail component destroyed');
     void this.appStateListener?.remove();
     if (this.searchTimer) clearTimeout(this.searchTimer);
     if (this.qrFeedbackTimer) clearTimeout(this.qrFeedbackTimer);
@@ -164,7 +155,6 @@ export class SessionDetailPage implements OnDestroy {
   }
 
   async load(): Promise<void> {
-    if (this.bulkMode()) this.recordMultiScanDiagnostic('session_reload_started', 'session reload started');
     const organizationId = this.workspace.selectedOrganizationId();
     const branchId = this.workspace.selectedBranchId();
     const version = ++this.requestVersion;
@@ -220,7 +210,6 @@ export class SessionDetailPage implements OnDestroy {
     } finally {
       if (this.isCurrent(version, organizationId, branchId)) this.loading.set(false);
       if (this.isCurrent(version, organizationId, branchId) && memberVersion === this.memberRequestVersion) this.memberLoading.set(false);
-      if (this.bulkMode()) this.recordMultiScanDiagnostic('session_reload_completed', 'session reload completed');
     }
   }
 
@@ -416,12 +405,9 @@ export class SessionDetailPage implements OnDestroy {
     const selected = this.queueItems();
     if (!organizationId || !branchId || !selected.length || this.bulkSubmitting() || !this.attendance.canRecordAttendance()) return;
     const version = this.requestVersion;
-    const correlationId = `bulk-checkin-${++this.bulkCheckInAttempt}`;
-    this.recordCheckInDiagnostic('checkin_confirm_started', correlationId, 'bulk check-in confirmation started', selected.length);
     this.bulkSubmittedItems.set(selected);
     this.bulkSubmitting.set(true);
     try {
-      this.recordCheckInDiagnostic('checkin_request_sent', correlationId, 'bulk check-in request sent', selected.length);
       const response = await firstValueFrom(this.api.recordBulkManualCheckIn(
         organizationId,
         this.sessionId,
@@ -432,7 +418,6 @@ export class SessionDetailPage implements OnDestroy {
             : { member_id: item.memberId, method: 'manual' as const }),
         })),
       ));
-      this.recordCheckInDiagnostic('checkin_response_received', correlationId, 'bulk check-in response received', selected.length, 200);
       if (version !== this.requestVersion || this.workspace.selectedOrganizationId() !== organizationId || this.workspace.selectedBranchId() !== branchId) return;
       this.bulkResults.set(response.results);
       for (const result of response.results) {
@@ -448,11 +433,8 @@ export class SessionDetailPage implements OnDestroy {
       if (failed) await this.notifications.warning(`${failed} member${failed === 1 ? '' : 's'} could not be checked in. Review the results and retry if appropriate.`);
       this.bulkReview.set(true);
       await this.refreshSummary();
-      this.recordCheckInDiagnostic('checkin_confirm_completed', correlationId, 'bulk check-in confirmation completed', selected.length, 200);
     } catch (error: unknown) {
       const status = error instanceof HttpErrorResponse ? error.status : 0;
-      const category = this.checkInErrorCategory(status);
-      this.recordCheckInDiagnostic('checkin_response_failed', correlationId, `bulk check-in failed: ${category}`, selected.length, status || null, category);
       const message = status === 409
         ? 'This session is no longer accepting attendance. Your selection was preserved.'
         : status === 401
@@ -519,7 +501,6 @@ export class SessionDetailPage implements OnDestroy {
       return;
     }
     if (outcome.kind === 'invalid_payload') {
-      this.recordMultiScanDiagnostic('decoded_payload_invalid', 'decoded payload rejected by local validation');
       this.setQrFeedback('Invalid membership QR code.', 'warning');
       return;
     }
@@ -541,14 +522,9 @@ export class SessionDetailPage implements OnDestroy {
     if (!organizationId || !branchId || !this.sessionId) return;
     this.bulkQrResolutionInFlight.set(true);
     try {
-      this.recordMultiScanDiagnostic('decoded_payload_valid', 'decoded payload passed local validation');
-      this.recordMultiScanDiagnostic('qr_preview_started', 'attendance QR preview started');
       const authorized = await this.refreshScanAuthorization(this.scanAuthorizationSnapshot);
       if (!authorized || !this.bulkQrScanning()) return;
-      this.scanDiagnostic('qr_resolution_requested');
       const preview = await firstValueFrom(this.api.previewQrCheckIn(organizationId, this.sessionId, outcome.qrIdentifier));
-      this.recordMultiScanDiagnostic('qr_preview_completed', 'attendance QR preview completed');
-      this.scanDiagnostic('qr_resolution_completed');
       if (!this.bulkQrScanning()) return;
       if (!this.scanAuthorizationMatches(this.scanAuthorizationSnapshot)) {
         await this.notifyAuthorizationChanged(true);
@@ -559,7 +535,6 @@ export class SessionDetailPage implements OnDestroy {
         return;
       }
       if (this.checkInQueue.has(preview.member_id)) {
-        this.recordMultiScanDiagnostic('member_duplicate', 'member was already in the selection queue');
         this.setQrFeedback('Already selected. Try another member card.', 'info');
         return;
       }
@@ -570,8 +545,6 @@ export class SessionDetailPage implements OnDestroy {
         last_name: '',
       }, outcome.qrIdentifier);
       this.syncQueue();
-      this.recordMultiScanDiagnostic('member_queued', 'authorized member added to selection queue');
-      this.scanDiagnostic('queue_item_added');
       await Haptics.vibrate({ duration: 30 }).catch(() => undefined);
       this.setQrFeedback(`Member added. ${this.queueItems().length} selected.`, 'success');
     } catch (error: unknown) {
@@ -595,7 +568,6 @@ export class SessionDetailPage implements OnDestroy {
     this.qrPreview.set(null);
     try {
       const scan = await this.qrScanner.scan();
-      this.qrScanner.recordSingleScanDiagnostic?.('single_scan_outcome', `outcome: ${scan.kind}`);
       if (scan.kind === 'cancelled') return;
       if (scan.kind === 'unsupported') {
         this.scannerMessage.set('QR scanning is available in the native app. Use member search in the browser.');
@@ -618,13 +590,7 @@ export class SessionDetailPage implements OnDestroy {
 
       let preview: AttendanceQrPreviewResponse;
       try {
-        this.qrScanner.recordSingleScanDiagnostic?.('qr_preview_requested', 'preview request started');
-        this.scanDiagnostic('qr_preview_requested');
-        this.scanDiagnostic('qr_resolution_requested');
         preview = await firstValueFrom(this.api.previewQrCheckIn(organizationId, this.sessionId, scan.qrIdentifier));
-        this.scanDiagnostic('qr_preview_completed', { status: 'success' });
-        this.qrScanner.recordSingleScanDiagnostic?.('qr_preview_completed', 'preview accepted', { http_status: 200, backend_error_category: 'none' });
-        this.scanDiagnostic('qr_resolution_completed');
       } catch (error: unknown) {
         await this.handleQrPreviewError(error);
         return;
@@ -733,18 +699,6 @@ export class SessionDetailPage implements OnDestroy {
 
   private async handleQrPreviewError(error: unknown, bulk = false): Promise<void> {
     const status = error instanceof HttpErrorResponse ? error.status : 0;
-    const category = status === 400 ? 'invalid_payload' : status === 403 || status === 404 ? 'not_eligible_or_unresolved' : status === 401 ? 'session_expired' : status === 0 ? 'network' : 'server_error';
-    this.recordMultiScanDiagnostic('qr_preview_failed', `attendance QR preview failed; category ${category}`, {
-      http_status: status,
-      error_category: category,
-    });
-    this.scanDiagnostic('preview-error', { status });
-    this.qrScanner.recordSingleScanDiagnostic?.('qr_preview_completed', `preview rejected; status ${status || 'network'}; category ${status === 400 ? 'invalid_payload' : status === 403 || status === 404 ? 'not_eligible_or_unresolved' : status === 401 ? 'session_expired' : status === 0 ? 'network' : 'server_error'}`, {
-      http_status: status,
-      backend_error_category: status === 400 ? 'invalid_payload' : status === 403 || status === 404 ? 'not_eligible_or_unresolved' : status === 401 ? 'session_expired' : status === 0 ? 'network' : 'server_error',
-    });
-    this.scanDiagnostic('qr_preview_completed', { status, result: 'rejected' });
-    this.scanDiagnostic('qr_resolution_completed', { status, result: 'rejected' });
     if (bulk) {
       const message = status === 0
         ? 'Could not connect. Try scanning again.'
@@ -792,39 +746,6 @@ export class SessionDetailPage implements OnDestroy {
     }, 2200);
   }
 
-  private recordCheckInDiagnostic(
-    event: string,
-    correlationId: string,
-    summary: string,
-    selectedCount: number,
-    httpStatus: number | null = null,
-    errorCategory: string | null = null,
-  ): void {
-    if (!this.showQrDiagnostics) return;
-    this.qrScanner.recordContinuousScanDiagnostic?.(
-      event,
-      `${summary}; session=${this.sessionId ? 'present' : 'missing'} context=${this.workspace.selectedOrganizationId() && this.workspace.selectedBranchId() ? 'valid' : 'invalid'}`,
-      {
-        correlation_id: correlationId,
-        selected_count: selectedCount,
-        session: this.sessionId ? 'present' : 'missing',
-        context_valid: Boolean(this.workspace.selectedOrganizationId() && this.workspace.selectedBranchId()),
-        http_status: httpStatus,
-        error_category: errorCategory,
-      },
-    );
-  }
-
-  private checkInErrorCategory(status: number): string {
-    if (status === 0) return 'network';
-    if (status === 400) return 'invalid_request';
-    if (status === 401) return 'session_expired';
-    if (status === 403 || status === 404) return 'not_authorized_or_unavailable';
-    if (status === 409) return 'session_not_recordable';
-    if (status >= 500) return 'server_error';
-    return 'request_rejected';
-  }
-
   async refreshSummary(): Promise<void> {
     const organizationId = this.workspace.selectedOrganizationId();
     const branchId = this.workspace.selectedBranchId();
@@ -857,25 +778,16 @@ export class SessionDetailPage implements OnDestroy {
   }
 
   private async refreshScanAuthorization(snapshot: ScanAuthorizationSnapshot | null): Promise<boolean> {
-    this.scanDiagnostic('refresh-start');
-    this.recordMultiScanDiagnostic('workspace_refresh_started', 'workspace authorization refresh started');
     this.scanAuthorizationRefreshing.set(true);
     try {
       const refreshed = await this.workspaceAuthorization.refresh('app-resume');
       if (!refreshed) {
-        this.scanDiagnostic('refresh-failed');
-        this.recordMultiScanDiagnostic('workspace_refresh_completed', 'workspace authorization refresh failed');
         if (this.bulkQrScanning()) this.setQrFeedback('Could not refresh access. Try scanning again.', 'error');
         else await this.notifications.error('We could not refresh your attendance authorization. Check your connection and try again.');
         return false;
       }
       const current = this.captureScanAuthorization();
       const differences = this.authorizationDifferences(snapshot, current);
-      this.scanDiagnostic('refresh-complete', {
-        result: differences.length ? 'changed' : 'unchanged',
-        differences,
-      });
-      this.recordMultiScanDiagnostic('workspace_refresh_completed', differences.length ? 'workspace authorization changed' : 'workspace authorization unchanged');
       if (!differences.length && this.scanAuthorizationMatches(snapshot)) return true;
       await this.notifyAuthorizationChanged(this.bulkQrScanning());
       return false;
@@ -929,46 +841,12 @@ export class SessionDetailPage implements OnDestroy {
     return differences;
   }
 
-  private scanDiagnostic(event: string, details: Record<string, unknown> = {}): void {
-    if (!environment.production) console.debug('[attendance-qr]', event, details);
-  }
-
-  private recordMultiScanDiagnostic(
-    event: string,
-    summary: string,
-    metadata: Readonly<Record<string, PenielQrLogValue>> = {},
-  ): void {
-    if (!this.showQrDiagnostics) return;
-    const context = this.bulkQrContextKey?.split(':') ?? [];
-    const currentContext = `${this.workspace.selectedOrganizationId() ?? ''}:${this.workspace.selectedBranchId() ?? ''}`;
-    const generationMatch = this.bulkQrContextKey !== null && this.bulkQrContextKey === currentContext;
-    this.qrScanner.recordContinuousScanDiagnostic?.(
-      event,
-      `${summary}; session=${this.sessionId ? 'present' : 'missing'} queue=${this.queueItems().length} component=${this.componentAlive ? 'alive' : 'destroyed'} generation=${context.length === 2 ? 'active' : 'none'} generation_match=${generationMatch} permission=${this.recordingPermissionState()} foreground=${this.appForeground ? 'active' : 'inactive'}`,
-      {
-        queue_count: this.queueItems().length,
-        component: this.componentAlive ? 'alive' : 'destroyed',
-        generation_match: generationMatch,
-        foreground: this.appForeground ? 'active' : 'inactive',
-        permission: this.recordingPermissionState(),
-        ...metadata,
-      } satisfies Readonly<Record<string, PenielQrLogValue>>,
-    );
-  }
-
   private notifyAuthorizationChanged(bulk = false): Promise<void> {
     if (bulk) {
       this.setQrFeedback('Attendance access changed. Scanning stopped.', 'error');
       return Promise.resolve();
     }
     return this.notifications.error('Your attendance authorization changed. Reopen the session before scanning again.');
-  }
-
-  private recordingPermissionState(): 'record' | 'loading' | 'denied' {
-    if (this.attendance.canRecordAttendance()) return 'record';
-    return this.workspace.authorizationState() === 'loading' || !this.workspace.authorizationVerified()
-      ? 'loading'
-      : 'denied';
   }
 
   formatDate(value: string): string { return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)); }
