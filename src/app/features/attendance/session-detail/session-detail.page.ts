@@ -916,6 +916,9 @@ export class SessionDetailPage implements OnDestroy {
 }
 
 export function getRecordingUnavailableMessage(session: AttendanceSession, now: number): string | null {
+  if (session.archived_at) {
+    return 'This attendance session is archived and cannot accept new attendance.';
+  }
   if (session.status !== 'scheduled') {
     return 'This session is cancelled or closed for normal attendance recording.';
   }

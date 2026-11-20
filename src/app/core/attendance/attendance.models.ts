@@ -34,6 +34,8 @@ export interface AttendanceSession {
   readonly schedule_revision_snapshot: number | null;
   readonly is_customized: boolean;
   readonly status: AttendanceSessionStatus;
+  readonly archived_at?: string | null;
+  readonly archive_reason?: string;
   readonly revision: number;
   readonly created_at: string;
   readonly updated_at: string;
